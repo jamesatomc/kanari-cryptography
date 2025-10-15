@@ -120,22 +120,23 @@ pub fn encrypt_data(data: &[u8], password: &str) -> Result<EncryptedData, Encryp
     // Fix for the temporary value dropped error - bind to variable first
     let hash = password_hash.hash.unwrap();
     let key_bytes = hash.as_bytes();
+    #[allow(deprecated)]
     let key = Key::<Aes256Gcm>::from_slice(key_bytes);
 
     // Generate a random nonce for AES-GCM
-    let nonce_bytes = Aes256Gcm::generate_nonce(&mut OsRng).to_vec();
+    let nonce_bytes = Aes256Gcm::generate_nonce(&mut OsRng);
 
     // Create the cipher for encryption
     let cipher = Aes256Gcm::new(key);
 
     // Encrypt the data
     let ciphertext = cipher
-        .encrypt(aes_gcm::Nonce::from_slice(&nonce_bytes), data)
+        .encrypt(&nonce_bytes, data)
         .map_err(|e| EncryptionError::AeadError(e.to_string()))?;
 
     // Store values in a more compact base64 representation
     let ciphertext_b64 = general_purpose::STANDARD.encode(&ciphertext);
-    let nonce_b64 = general_purpose::STANDARD.encode(&nonce_bytes);
+    let nonce_b64 = general_purpose::STANDARD.encode(nonce_bytes);
 
     Ok(EncryptedData {
         ciphertext_array: Vec::new(),
@@ -162,13 +163,18 @@ pub fn decrypt_data(encrypted: &EncryptedData, password: &str) -> Result<Vec<u8>
     // Fix for the temporary value dropped error
     let hash = password_hash.hash.unwrap();
     let key_bytes = hash.as_bytes();
+    #[allow(deprecated)]
     let key = Key::<Aes256Gcm>::from_slice(key_bytes);
 
     // Get ciphertext and nonce from the encrypted data
     let ciphertext = encrypted.get_ciphertext();
     let nonce_bytes = encrypted.get_nonce();
 
-    // Create nonce for decryption - fix the Nonce usage
+    // Create nonce for decryption - need to convert Vec<u8> to Nonce
+    if nonce_bytes.len() != 12 {
+        return Err(EncryptionError::InvalidFormat("Invalid nonce length".to_string()));
+    }
+    #[allow(deprecated)]
     let nonce = aes_gcm::Nonce::from_slice(&nonce_bytes);
 
     // Create cipher for decryption

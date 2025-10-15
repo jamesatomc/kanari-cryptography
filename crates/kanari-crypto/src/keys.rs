@@ -24,9 +24,10 @@ use p256::{
 use ed25519_dalek::{SigningKey as Ed25519SigningKey, VerifyingKey as Ed25519VerifyingKey};
 
 /// Supported elliptic curve types
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
 pub enum CurveType {
     /// Secp256k1 curve (used by Bitcoin and Ethereum)
+    #[default]
     K256,
 
     /// Secp256r1 curve (NIST P-256)
@@ -34,12 +35,6 @@ pub enum CurveType {
 
     /// Ed25519 curve (modern, fast signature scheme)
     Ed25519,
-}
-
-impl Default for CurveType {
-    fn default() -> Self {
-        CurveType::K256
-    }
 }
 
 impl fmt::Display for CurveType {
@@ -86,11 +81,9 @@ pub fn format_private_key(raw_key: &str) -> String {
 
 /// Extract the raw hex key from a formatted private key
 pub fn extract_raw_key(formatted_key: &str) -> &str {
-    if formatted_key.starts_with(KANARI_KEY_PREFIX) {
-        &formatted_key[KANARI_KEY_PREFIX.len()..]
-    } else {
-        formatted_key // Return as-is if it doesn't have the prefix
-    }
+    formatted_key
+        .strip_prefix(KANARI_KEY_PREFIX)
+        .unwrap_or(formatted_key)
 }
 
 /// Generate a keypair for the specified curve type
@@ -176,7 +169,7 @@ fn generate_ed25519_keypair() -> Result<KeyPair, KeyError> {
     let public_key_bytes = verifying_key.to_bytes();
 
     // Format the public key
-    let hex_encoded = hex::encode(&public_key_bytes);
+    let hex_encoded = hex::encode(public_key_bytes);
     let address = format!("0x{}", hex_encoded);
     let raw_private_key = hex::encode(private_key_bytes);
 
@@ -243,7 +236,7 @@ pub fn keypair_from_mnemonic(
             hex_encoded.truncate(64);
 
             let address = format!("0x{}", hex_encoded);
-            let raw_private_key = hex::encode(&signing_key.to_bytes());
+            let raw_private_key = hex::encode(signing_key.to_bytes());
 
             // Format private key with kanari prefix
             let private_key = format_private_key(&raw_private_key);
@@ -264,7 +257,7 @@ pub fn keypair_from_mnemonic(
 
             let private_key = hex::encode(signing_key.to_bytes());
             let public_key_bytes = verifying_key.to_bytes();
-            let hex_encoded = hex::encode(&public_key_bytes);
+            let hex_encoded = hex::encode(public_key_bytes);
             let address = format!("0x{}", hex_encoded);
 
             // Format private key with kanari prefix
@@ -359,14 +352,18 @@ pub fn keypair_from_private_key(
             let verifying_key = Ed25519VerifyingKey::from(&signing_key);
 
             let public_key_bytes = verifying_key.to_bytes();
-            let hex_encoded = hex::encode(&public_key_bytes);
+            let hex_encoded = hex::encode(public_key_bytes);
             let address = format!("0x{}", hex_encoded);
 
-            // Format private key with kanari prefix
-            let private_key = format_private_key(private_key);
+            // Format with kanari prefix if not already formatted
+            let formatted_private_key = if private_key.starts_with(KANARI_KEY_PREFIX) {
+                private_key.to_string()
+            } else {
+                format_private_key(raw_private_key)
+            };
 
             Ok(KeyPair {
-                private_key: private_key.to_string(),
+                private_key: formatted_private_key,
                 public_key: hex_encoded,
                 address,
                 curve_type: CurveType::Ed25519,

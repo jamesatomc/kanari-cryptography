@@ -70,9 +70,12 @@ impl Address {
     fn validate_padding(bytes: &[u8]) -> Result<(), AddressParseError> {
         let first_non_zero = bytes.iter().position(|&b| b != 0);
         match first_non_zero {
-            Some(idx) => Ok(if idx < bytes.len() - Self::LENGTH {
-                return Err(AddressParseError::InvalidPadding);
-            }),
+            Some(idx) => {
+                if idx < bytes.len() - Self::LENGTH {
+                    return Err(AddressParseError::InvalidPadding);
+                }
+                Ok(())
+            }
             None => Ok(()),
         }
     }

@@ -355,7 +355,7 @@ pub fn remove_mnemonic() -> Result<(), WalletError> {
 }
 
 /// Session key management functions
-
+///
 /// Save session key
 pub fn save_session_key(key: &str, value: &str) -> Result<(), WalletError> {
     let mut keystore = Keystore::load().map_err(|e| WalletError::KeystoreError(e.to_string()))?;
@@ -425,10 +425,7 @@ pub fn list_wallet_files() -> Result<Vec<(String, bool)>, io::Error> {
 
             Ok(wallets)
         }
-        Err(e) => Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("Failed to load keystore: {}", e),
-        )),
+        Err(e) => Err(io::Error::other(format!("Failed to load keystore: {}", e))),
     }
 }
 
@@ -477,10 +474,10 @@ fn update_active_address(address: &str) -> io::Result<()> {
 /// Get the currently selected wallet from configuration
 pub fn get_selected_wallet() -> Option<String> {
     // Only use kanari config
-    if let Ok(kanari_config) = load_kanari_config() {
-        if let Some(active_address) = kanari_config.get("active_address").and_then(|v| v.as_str()) {
-            return Some(active_address.to_string());
-        }
+    if let Ok(kanari_config) = load_kanari_config()
+        && let Some(active_address) = kanari_config.get("active_address").and_then(|v| v.as_str())
+    {
+        return Some(active_address.to_string());
     }
     None
 }

@@ -39,18 +39,13 @@ pub use keystore::{Keystore, get_keystore_path, keystore_exists};
 pub use compression::{compress_data, decompress_data};
 
 /// Hash algorithm options
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HashAlgorithm {
     /// SHA3-256 algorithm (default)
+    #[default]
     Sha3_256,
     /// Blake3 algorithm (faster, equally secure)
     Blake3,
-}
-
-impl Default for HashAlgorithm {
-    fn default() -> Self {
-        HashAlgorithm::Sha3_256
-    }
 }
 
 /// Cryptographic hash using SHA3-256
@@ -106,7 +101,7 @@ pub fn is_password_strong(password: &str) -> bool {
 
     let has_uppercase = password.chars().any(|c| c.is_uppercase());
     let has_lowercase = password.chars().any(|c| c.is_lowercase());
-    let has_digit = password.chars().any(|c| c.is_digit(10));
+    let has_digit = password.chars().any(|c| c.is_ascii_digit());
     let has_special = password.chars().any(|c| !c.is_alphanumeric());
 
     has_uppercase && has_lowercase && has_digit && has_special

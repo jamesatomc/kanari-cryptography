@@ -1,4 +1,3 @@
-use dirs;
 use serde_yaml::{Mapping, Value};
 use std::fs::{self, File};
 use std::io::{self, Write};
@@ -161,22 +160,16 @@ pub fn save_config(config_to_save: &Value) -> io::Result<()> {
         if let Some(envs) = kanari_config_map
             .get_mut("envs")
             .and_then(|v| v.as_sequence_mut())
-        {
-            if let Some(env_to_update) = envs
+            && let Some(env_to_update) = envs
                 .iter_mut()
                 .find(|env| env.get("alias").and_then(|v| v.as_str()) == Some(&active_env_alias))
-            {
-                if let Some(rpc_port_val) =
-                    config_to_save_map.get("rpc_port").and_then(|v| v.as_u64())
-                {
-                    if let Some(env_map_mut) = env_to_update.as_mapping_mut() {
-                        env_map_mut.insert(
-                            Value::String("rpc".to_string()),
-                            Value::String(format!("http://127.0.0.1:{}", rpc_port_val)),
-                        );
-                    }
-                }
-            }
+            && let Some(rpc_port_val) = config_to_save_map.get("rpc_port").and_then(|v| v.as_u64())
+            && let Some(env_map_mut) = env_to_update.as_mapping_mut()
+        {
+            env_map_mut.insert(
+                Value::String("rpc".to_string()),
+                Value::String(format!("http://127.0.0.1:{}", rpc_port_val)),
+            );
         }
 
         save_kanari_config(&Value::Mapping(kanari_config_map.clone()))?; // Clone because save_kanari_config takes &Value
