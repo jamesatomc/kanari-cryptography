@@ -13,14 +13,30 @@ exclude = [
 
 # Members List: Crates that are part of this workspace.
 # These are the core components of the "kanari-" project.
-members = [
+members = ["crates/kanari-crypto"
 
-]
+, "crates/kanari-types"]
 
 # Dependencies that should be kept in sync through the whole workspace
 [workspace.dependencies]
+sha3 = "0.10.8"
+bip39 = { version = "2.0.0", features = ["rand"] }
+rand = "0.8.5"
+hex = "0.4.3"
+bcs = { version = "0.1.6" }
+serde_json = { version = "1.0.145", default-features = true }
+lazy_static = { version = "1.5.0", default-features = true }
+serde_yaml = { version = "0.9.34-deprecated", default-features = true }
+toml = { version = "0.9.7", default-features = true }
+log = { version = "0.4.28", default-features = true }
+serde = { version = "1.0.228", default-features = true }
+thiserror = { version = "2.0.17", default-features = true }
+primitive-types = { version = "0.14.0", default-features = true }
+argon2 = { version = "0.5.3", default-features = true }
 
 
+kanari-crypto = { path = "crates/kanari-crypto" }
+kanari-types = { path = "crates/kanari-types" }
 
 # Move dependencies
 move-binary-format = { path = "third_party/move/crates/move-binary-format" }
