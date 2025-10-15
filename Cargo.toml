@@ -13,7 +13,7 @@ exclude = [
 
 # Members List: Crates that are part of this workspace.
 # These are the core components of the "kanari-" project.
-members = ["crates/kanari-crypto"
+members = ["crates/kanari-common","crates/kanari-crypto"
 
 , "crates/kanari-types"]
 
@@ -34,7 +34,7 @@ thiserror = { version = "2.0.17", default-features = true }
 primitive-types = { version = "0.14.0", default-features = true }
 argon2 = { version = "0.5.3", default-features = true }
 
-
+kanari-common = { path = "crates/kanari-common" }
 kanari-crypto = { path = "crates/kanari-crypto" }
 kanari-types = { path = "crates/kanari-types" }
 
