@@ -4,6 +4,7 @@
 //! storage, and loading of cryptocurrency wallets.
 
 use crate::keys::CurveType;
+use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 use std::io;
 use thiserror::Error;
@@ -11,11 +12,13 @@ use thiserror::Error;
 use kanari_common::{load_kanari_config, save_kanari_config};
 use kanari_types::address::Address;
 use serde_yaml::{Mapping, Value};
+use toml; // Ensure toml is imported for serialization/deserialization
 
 use crate::Keystore;
 use crate::compression;
 use crate::encryption;
 use crate::signatures;
+use crate::hd_wallet::{self, HdError}; // ADDED: Import hd_wallet module
 
 /// Errors that can occur during wallet operations
 #[derive(Error, Debug)]
@@ -43,6 +46,9 @@ pub enum WalletError {
 
     #[error("Keystore error: {0}")]
     KeystoreError(String),
+
+    #[error("HD Wallet error: {0}")] // ADDED: Error for HD operations
+    HdWalletError(#[from] HdError),
 }
 
 /// Structure representing a wallet with private key and address
@@ -261,6 +267,71 @@ pub fn load_wallet(address: &str, password: &str) -> Result<Wallet, WalletError>
     }
 }
 
+// =========================================================================
+// HD Wallet Functionality
+// =========================================================================
+
+/// Create a child wallet derived from the stored mnemonic at the given path.
+/// The created wallet is automatically saved to the keystore and set as active.
+pub fn create_wallet_from_hd(
+    password: &str,
+    derivation_path: &str,
+    curve: CurveType,
+) -> Result<Wallet, WalletError> {
+    // Backwards-compatible helper: create + save. Delegate to new helpers.
+    let wallet = create_hd_wallet(password, derivation_path, curve)?;
+    save_hd_wallet(&wallet, password)?;
+    Ok(wallet)
+}
+
+/// Create (but do not persist) a child wallet derived from the stored mnemonic
+/// at the given BIP32 derivation path. Returns the constructed Wallet.
+pub fn create_hd_wallet(
+    password: &str,
+    derivation_path: &str,
+    curve: CurveType,
+) -> Result<Wallet, WalletError> {
+    // Load mnemonic and derive keypair
+    let mnemonic_phrase = load_mnemonic(password)?;
+
+    let key_pair = hd_wallet::derive_keypair_from_path(
+        &mnemonic_phrase,
+        password,
+        derivation_path,
+        curve,
+    )?;
+
+    // Convert the derived address string into an Address type
+    let address = Address::from_str(&key_pair.address)
+        .map_err(|e| WalletError::SerializationError(format!("Invalid derived address: {}", e)))?;
+
+    // Construct Wallet; store the derivation path in the seed_phrase field
+    let wallet = Wallet::new(
+        address,
+        key_pair.private_key,
+        derivation_path.to_string(),
+        curve,
+    );
+
+    Ok(wallet)
+}
+
+/// Persist a previously-created HD child wallet into the keystore using
+/// the standard `save_wallet` path.
+pub fn save_hd_wallet(wallet: &Wallet, password: &str) -> Result<(), WalletError> {
+    save_wallet(
+        &wallet.address,
+        &wallet.private_key,
+        &wallet.seed_phrase,
+        password,
+        wallet.curve_type,
+    )
+}
+
+// =========================================================================
+// Mnemonic Management Functions
+// =========================================================================
+
 /// Save mnemonic phrase to keystore
 pub fn save_mnemonic(
     mnemonic: &str,
@@ -354,8 +425,10 @@ pub fn remove_mnemonic() -> Result<(), WalletError> {
     Ok(())
 }
 
-/// Session key management functions
-///
+// =========================================================================
+// Session Key Management Functions
+// =========================================================================
+
 /// Save session key
 pub fn save_session_key(key: &str, value: &str) -> Result<(), WalletError> {
     let mut keystore = Keystore::load().map_err(|e| WalletError::KeystoreError(e.to_string()))?;
@@ -395,6 +468,10 @@ pub fn clear_session_keys() -> Result<(), WalletError> {
 
     Ok(())
 }
+
+// =========================================================================
+// Utility and Configuration Functions
+// =========================================================================
 
 /// Check if any wallets exist
 pub fn check_wallet_exists() -> bool {

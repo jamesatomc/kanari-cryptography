@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 # The `move-core-types` crate contains the core types of the Move language.
-# Move dependencies (optional)
+# Move dependencies
 move-core-types = { workspace = true}
 
 

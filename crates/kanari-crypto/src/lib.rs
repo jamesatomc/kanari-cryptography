@@ -12,6 +12,7 @@ pub mod keystore;
 pub mod signatures;
 pub mod wallet;
 pub mod keys;
+pub mod hd_wallet;
 
 // Re-export signature functionality
 pub use signatures::{
