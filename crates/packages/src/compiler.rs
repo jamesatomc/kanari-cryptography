@@ -11,7 +11,6 @@ use std::fs;
 #[derive(Serialize, Deserialize)]
 pub struct KanariPackage {
     pub package_name: String,
-    pub version: String,
     pub modules: Vec<CompiledModuleData>,
     pub compiled_at: u64,
 }
@@ -108,7 +107,7 @@ pub fn compile_package(package_dir: &Path, output_dir: &Path, version: &str, add
     // Create Kanari package
     let package = KanariPackage {
         package_name: package_name.clone(),
-        version: format!("0.0.{}", version),
+
         modules: compiled_modules,
         compiled_at: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

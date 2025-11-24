@@ -1,6 +1,8 @@
 // Copyright (c) Kanari Network
 // SPDX-License-Identifier: Apache-2.0
 
+
+// Package configurations for Kanari packages MoveVM
 use move_core_types::account_address::AccountAddress;
 use std::str::FromStr;
 
