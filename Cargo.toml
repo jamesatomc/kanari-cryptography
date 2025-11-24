@@ -13,7 +13,7 @@ exclude = [
 
 # Members List: Crates that are part of this workspace.
 # These are the core components of the "kanari-" project.
-members = ["crates/kanari-common","crates/kanari-crypto"
+members = ["crates/kanari-bank","crates/kanari-common","crates/kanari-crypto"
 
 , "crates/kanari-types"]
 

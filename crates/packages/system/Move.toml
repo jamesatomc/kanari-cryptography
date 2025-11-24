@@ -1,0 +1,11 @@
+[package]
+name = "kanari_system"
+version = "0.0.1"
+
+[dependencies]
+# Use local Move standard library
+MoveStdlib = { local = "../../../third_party/move/crates/move-stdlib" }
+
+[addresses]
+system = "0x1"
+std = "0x1"
