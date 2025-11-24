@@ -9,6 +9,7 @@
 ## 📊 สรุปผลการทดสอบ
 
 ### ผลลัพธ์
+
 - **Tests ทั้งหมด:** 98 tests
 - **ผ่าน:** 98 tests (100%)
 - **ล้มเหลว:** 0 tests
@@ -26,12 +27,14 @@ test result: ok. 98 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
 **ไฟล์:** `src/keystore.rs`  
 **Tests เพิ่ม:**
+
 - ✅ `test_keystore_save_uses_atomic_write` - ตรวจสอบว่าใช้ atomic write pattern
 - ✅ `test_keystore_concurrent_save_safety` - ยืนยันความปลอดภัยจาก concurrent writes
 
 **Bug Details:** ไม่มี file locking หรือ atomic write ทำให้เสี่ยง data corruption
 
 **วิธีแก้ที่มีอยู่ในโค้ด:**
+
 ```rust
 // Atomic write pattern
 let temp_path = keystore_path.with_extension("tmp");
@@ -45,6 +48,7 @@ fs::rename(temp_path, keystore_path)?; // Atomic operation
 
 **ไฟล์:** `src/signatures.rs`  
 **Tests เพิ่ม:**
+
 - ✅ `test_signature_verification_uses_constant_time` - ยืนยัน constant-time comparison
 - ✅ `test_signature_fails_with_wrong_message` - ตรวจสอบการ fail อย่างปลอดภัย
 - ✅ `test_sign_and_verify_k256` - ทดสอบ K256 signature
@@ -61,6 +65,7 @@ fs::rename(temp_path, keystore_path)?; // Atomic operation
 
 **ไฟล์:** `src/signatures.rs`, `src/encryption.rs`  
 **Tests เพิ่ม:**
+
 - ✅ `test_secure_clear_memory_safety` - ยืนยันว่า memory ถูกล้าง
 - ✅ `test_secure_clear_uses_black_box` - ตรวจสอบการใช้ black_box
 - ✅ `test_secure_clear_on_different_sizes` - ทดสอบกับขนาดต่างๆ (0-1024 bytes)
@@ -71,6 +76,7 @@ fs::rename(temp_path, keystore_path)?; // Atomic operation
 **Bug Details:** Compiler อาจ optimize ออก sensitive data clearing
 
 **วิธีแก้:**
+
 ```rust
 pub fn secure_clear(data: &mut [u8]) {
     for byte in data.iter_mut() {
@@ -88,6 +94,7 @@ pub fn secure_clear(data: &mut [u8]) {
 
 **ไฟล์:** `src/keys.rs`  
 **Tests เพิ่ม:**
+
 - ✅ `test_hybrid_ed25519_dilithium3_address_generation` - ทดสอบ hybrid keypair
 - ✅ `test_hybrid_k256_dilithium3_address_generation` - ทดสอบ K256+Dilithium3
 - ✅ `test_short_public_key_handling` - ทดสอบ edge case ของ short keys
@@ -96,6 +103,7 @@ pub fn secure_clear(data: &mut [u8]) {
 **Bug Details:** ใช้ `.as_bytes()[..20]` โดยไม่ check ความยาว
 
 **วิธีแก้:**
+
 ```rust
 let pub_bytes = combined_public.as_bytes();
 let hash_input = if pub_bytes.len() >= 20 {
@@ -111,6 +119,7 @@ let hash_input = if pub_bytes.len() >= 20 {
 
 **ไฟล์:** `src/encryption.rs`  
 **Tests เพิ่ม:**
+
 - ✅ `test_argon2_parameters_meet_owasp_standards` - ตรวจสอบตามมาตรฐาน OWASP
 - ✅ `test_argon2_stronger_than_old_params` - เปรียบเทียบกับค่าเดิม
 - ✅ `test_encrypt_decrypt_roundtrip` - ทดสอบ encryption/decryption
@@ -119,6 +128,7 @@ let hash_input = if pub_bytes.len() >= 20 {
 **Bug Details:** Parameters ต่ำกว่า OWASP recommendations
 
 **ค่าเดิม vs ค่าใหม่:**
+
 ```rust
 // Old: 19456 KB (19 MB), 2 iterations
 // New: 47104 KB (46 MB), 3 iterations (OWASP standard)
@@ -126,6 +136,7 @@ argon2::Params::new(47104, 3, 1, None)
 ```
 
 **OWASP Standards:**
+
 - Memory: ≥ 46 MB (47104 KB)
 - Iterations: ≥ 2 (recommended 2-3)
 - Parallelism: 1
@@ -136,6 +147,7 @@ argon2::Params::new(47104, 3, 1, None)
 
 **ไฟล์:** `src/wallet.rs`  
 **Tests เพิ่ม:**
+
 - ✅ `test_save_wallet_rejects_empty_password` - ตรวจสอบ empty password
 - ✅ `test_save_wallet_rejects_short_password` - ตรวจสอบ password < 8 chars
 - ✅ `test_save_wallet_accepts_minimum_length_password` - ทดสอบขั้นต่ำ 8 chars
@@ -145,6 +157,7 @@ argon2::Params::new(47104, 3, 1, None)
 **Bug Details:** ไม่มีการตรวจสอบ password strength
 
 **Validation ที่เพิ่ม:**
+
 ```rust
 // ความยาวขั้นต่ำ
 if password.len() < 8 {
@@ -165,6 +178,7 @@ if !crate::is_password_strong(password) {
 
 **ไฟล์:** `src/keys.rs`  
 **Tests เพิ่ม:**
+
 - ✅ `test_detect_curve_type_ed25519` - ทดสอบการตรวจจับ Ed25519
 - ✅ `test_detect_curve_type_k256` - ทดสอบการตรวจจับ K256
 - ✅ `test_detect_curve_type_invalid` - ทดสอบ invalid input
@@ -173,6 +187,7 @@ if !crate::is_password_strong(password) {
 **Bug Details:** มีการเช็คความยาวซ้ำซ้อน
 
 **ก่อนแก้:**
+
 ```rust
 if decoded_hex.len() == 32 {
     let mut key_array = [0u8; 32];
@@ -183,6 +198,7 @@ if decoded_hex.len() == 32 {
 ```
 
 **หลังแก้:**
+
 ```rust
 if decoded_hex.len() == 32 {
     let mut key_array = [0u8; 32];
@@ -195,6 +211,7 @@ if decoded_hex.len() == 32 {
 ## 🧪 Test Coverage เพิ่มเติม
 
 ### Keys Module (21 tests)
+
 - Keypair generation สำหรับทุก curve types
 - Mnemonic generation และ validation
 - Private key formatting
@@ -204,6 +221,7 @@ if decoded_hex.len() == 32 {
 - Error handling
 
 ### Encryption Module (15 tests)
+
 - Argon2 parameter validation
 - Secure memory clearing
 - Encryption/decryption roundtrip
@@ -213,6 +231,7 @@ if decoded_hex.len() == 32 {
 - Encryption schemes
 
 ### Signatures Module (15 tests)
+
 - Signing และ verification ทุก curve
 - Timing attack protection
 - Empty message handling
@@ -222,6 +241,7 @@ if decoded_hex.len() == 32 {
 - PQC signature errors
 
 ### Wallet Module (17 tests)
+
 - Wallet creation
 - Password validation
 - Signing และ verification
@@ -231,6 +251,7 @@ if decoded_hex.len() == 32 {
 - Error types
 
 ### Keystore Module (18 tests)
+
 - Atomic write operations
 - Wallet CRUD operations
 - Mnemonic management
@@ -243,7 +264,8 @@ if decoded_hex.len() == 32 {
 
 ## 📈 Code Coverage
 
-### ตามโมดูล:
+### ตามโมดูล
+
 - **keys.rs:** 21 tests - ครอบคลุม key generation, validation, formatting
 - **encryption.rs:** 15 tests - ครอบคลุม encryption, decryption, security
 - **signatures.rs:** 15 tests - ครอบคลุม signing, verification, security
@@ -251,17 +273,20 @@ if decoded_hex.len() == 32 {
 - **keystore.rs:** 18 tests - ครอบคลุม storage operations และ concurrency
 - **อื่นๆ:** 12 tests - audit, backup, compression, hsm, key_rotation
 
-### Critical Bugs:
+### Critical Bugs
+
 - ✅ Bug #1 (Race Condition): **100% covered** - 2 tests
 - ✅ Bug #2 (Timing Attack): **100% covered** - 7 tests
 - ✅ Bug #3 (Memory Safety): **100% covered** - 6 tests
 - ✅ Bug #4 (Hybrid Panic): **100% covered** - 4 tests
 
-### High Severity Bugs:
+### High Severity Bugs
+
 - ✅ Bug #5 (Argon2): **100% covered** - 4 tests
 - ✅ Bug #6 (Password): **100% covered** - 5 tests
 
-### Medium Severity Bugs:
+### Medium Severity Bugs
+
 - ✅ Bug #9 (Logic Error): **100% covered** - 4 tests
 
 ---
@@ -269,6 +294,7 @@ if decoded_hex.len() == 32 {
 ## 🎯 ผลการทดสอบแยกตามประเภท
 
 ### Security Tests
+
 - ✅ Timing attack protection
 - ✅ Memory clearing security
 - ✅ Password validation
@@ -276,6 +302,7 @@ if decoded_hex.len() == 32 {
 - ✅ Atomic file operations
 
 ### Functional Tests
+
 - ✅ Key generation (all curves)
 - ✅ Signing/verification
 - ✅ Encryption/decryption
@@ -283,6 +310,7 @@ if decoded_hex.len() == 32 {
 - ✅ Keystore management
 
 ### Edge Cases
+
 - ✅ Empty inputs
 - ✅ Large data (1 MB, 10 KB)
 - ✅ Invalid inputs
@@ -290,6 +318,7 @@ if decoded_hex.len() == 32 {
 - ✅ Wrong passwords
 
 ### Error Handling
+
 - ✅ Invalid private keys
 - ✅ Wrong message verification
 - ✅ Missing wallets
@@ -336,18 +365,21 @@ cargo test --lib -- --nocapture
 ## 🔍 Bug ที่พบเพิ่มเติมจากการเขียน Tests
 
 ### 1. PQC Key Prefix Inconsistency
+
 **พบระหว่าง:** การเขียน test  
 **ปัญหา:** PQC keys ใช้ `kanapqc` prefix แต่ test คาดหวัง `pqc`  
 **แก้ไข:** อัพเดต test ให้ตรงกับ implementation  
 **ผลกระทบ:** ไม่มีผลกระทบต่อ security
 
 ### 2. Keystore Default Version
+
 **พบระหว่าง:** การเขียน test  
 **ปัญหา:** `Keystore::default()` ไม่ set version automatically  
 **แก้ไข:** Version ถูก set เมื่อ save/load เท่านั้น  
 **ผลกระทบ:** Expected behavior, ไม่ใช่ bug
 
 ### 3. Hybrid K256+Dilithium3 Key Format
+
 **พบระหว่าง:** การเขียน test  
 **ปัญหา:** Dilithium3 raw key ไม่มี `pqc` prefix ทำให้ `.strip_prefix("pqc")` return None  
 **แก้ไข:** Handle error case ใน test  
@@ -365,6 +397,7 @@ cargo test --lib -- --nocapture
 4. **Quality:** ทุก test ผ่าน 100%, ไม่มี failing tests
 
 **คำแนะนำต่อไป:**
+
 - เพิ่ม integration tests สำหรับ end-to-end scenarios
 - เพิ่ม performance benchmarks
 - เพิ่ม fuzzing tests สำหรับ cryptographic functions
