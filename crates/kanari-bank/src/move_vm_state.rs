@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use serde::{Serialize, Deserialize};
 use crate::move_runtime::MoveRuntime;
-use kanari_types::transfer::{TransferRecord, address_to_u64};
+use kanari_types::transfer::TransferRecord;
 
 /// State manager that uses Move VM for execution
 #[derive(Serialize, Deserialize)]
@@ -84,26 +84,22 @@ impl MoveVMState {
             anyhow::bail!("Insufficient balance");
         }
 
-        // Create transfer record using Move VM
-        let from_u64 = address_to_u64(&from);
-        let to_u64 = address_to_u64(&to);
-        
         // Call Move function to validate transfer
-        let is_valid = runtime.validate_transfer(from_u64, to_u64, amount)?;
+        let is_valid = runtime.validate_transfer(&from, &to, amount)?;
         
         if !is_valid {
             anyhow::bail!("Transfer validation failed");
         }
 
         // Try to create transfer record using Move VM
-        match runtime.create_transfer_record(from_u64, to_u64, amount) {
+        match runtime.create_transfer_record(&from, &to, amount) {
             Ok(transfer_bytes) => {
                 // Verify the transfer amount from Move VM
                 if let Ok(move_amount) = runtime.get_transfer_amount(transfer_bytes) {
                     if move_amount != amount {
                         anyhow::bail!("Amount mismatch: expected {}, got {} from Move VM", amount, move_amount);
                     }
-                    println!("✓ Move VM validated transfer: {} → {} amount: {}", from_u64, to_u64, move_amount);
+                    println!("✓ Move VM validated transfer: {} → {} amount: {}", from, to, move_amount);
                 }
             }
             Err(e) => {

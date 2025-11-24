@@ -117,7 +117,7 @@ impl MoveRuntime {
     }
 
     /// Validate transfer using Move VM by calling Move function
-    pub fn validate_transfer(&mut self, from: u64, to: u64, amount: u64) -> Result<bool> {
+    pub fn validate_transfer(&mut self, from: &AccountAddress, to: &AccountAddress, amount: u64) -> Result<bool> {
         // Try to call Move function if module is loaded
         let module_id = TransferModule::get_module_id()?;
         
@@ -154,13 +154,13 @@ impl MoveRuntime {
     }
 
     /// Create a transfer record using Move VM
-    pub fn create_transfer_record(&mut self, from: u64, to: u64, amount: u64) -> Result<Vec<u8>> {
+    pub fn create_transfer_record(&mut self, from: &AccountAddress, to: &AccountAddress, amount: u64) -> Result<Vec<u8>> {
         let module_id = TransferModule::get_module_id()?;
         
-        // Serialize arguments
+        // Serialize arguments - AccountAddress is serialized directly via BCS
         let args = vec![
-            bcs::to_bytes(&from)?,
-            bcs::to_bytes(&to)?,
+            bcs::to_bytes(from)?,
+            bcs::to_bytes(to)?,
             bcs::to_bytes(&amount)?,
         ];
 
@@ -217,18 +217,21 @@ mod tests {
     fn test_validate_transfer_without_module() {
         let mut runtime = MoveRuntime::new().unwrap();
         
+        let addr1 = AccountAddress::from_hex_literal("0x100").unwrap();
+        let addr2 = AccountAddress::from_hex_literal("0x200").unwrap();
+        
         // Test with fallback validation (no module loaded)
-        let result = runtime.validate_transfer(100, 200, 500);
+        let result = runtime.validate_transfer(&addr1, &addr2, 500);
         assert!(result.is_ok());
         assert!(result.unwrap());
         
         // Test with zero amount
-        let result = runtime.validate_transfer(100, 200, 0);
+        let result = runtime.validate_transfer(&addr1, &addr2, 0);
         assert!(result.is_ok());
         assert!(!result.unwrap());
         
         // Test with same address
-        let result = runtime.validate_transfer(100, 100, 500);
+        let result = runtime.validate_transfer(&addr1, &addr1, 500);
         assert!(result.is_ok());
         assert!(!result.unwrap());
     }

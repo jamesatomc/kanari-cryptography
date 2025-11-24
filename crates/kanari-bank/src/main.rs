@@ -2,7 +2,6 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use log::info;
 use std::fs;
-use std::path::PathBuf;
 
 // Move VM imports
 use move_core_types::account_address::AccountAddress;
@@ -13,11 +12,10 @@ use kanari_crypto::{
     wallet::{list_wallet_files, load_wallet, save_wallet},
 };
 
-mod move_compiler_wrapper;
 mod move_runtime;
 mod move_vm_state;
 
-use move_compiler_wrapper::compile_simple_package;
+
 use move_runtime::MoveRuntime;
 use move_vm_state::MoveVMState;
 
@@ -112,14 +110,6 @@ enum Commands {
         #[arg(short, long)]
         confirm: bool,
     },
-    /// Compile Move package
-    CompileMove {
-        /// Path to Move package
-        #[arg(short, long, default_value = "crates/packages/system")]
-        path: String,
-    },
-    /// Initialize Move VM with compiled modules
-    InitMove,
 }
 
 /// Parse address from hex string
@@ -145,29 +135,9 @@ fn main() -> Result<()> {
     info!("Kanari Bank - Move-based Transfer System");
     info!("==========================================");
 
-    // Always use Move VM
-    println!("🚀 Using Move VM");
-
     let mut state = MoveVMState::load()?;
     let mut runtime = MoveRuntime::new()?;
 
-    // Load compiled modules
-    let package_path = PathBuf::from("crates/packages/system");
-    let build_dir = package_path.join("build/kanari/bytecode_modules");
-
-    if build_dir.exists() {
-        for entry in std::fs::read_dir(&build_dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) == Some("mv") {
-                let module_bytes = std::fs::read(&path)?;
-                runtime.load_module(module_bytes)?;
-            }
-        }
-        println!("✓ Move VM initialized with modules");
-    } else {
-        println!("⚠️  No compiled modules found. Run: compile-move first");
-    }
 
     match cli.command {
         Commands::CreateWallet { password, curve, words } => {
@@ -431,105 +401,6 @@ fn main() -> Result<()> {
 
             state.save()?;
             println!("  Remaining balance: {}", state.get_balance(&from_addr));
-        }
-
-        Commands::CompileMove { path } => {
-            println!("🔨 Compiling Move package at: {}", path);
-            let package_path = PathBuf::from(&path);
-
-            if !package_path.exists() {
-                anyhow::bail!("Package path does not exist: {}", path);
-            }
-
-            println!("📦 Using built-in Move compiler...");
-
-            match compile_simple_package(&package_path) {
-                Ok(modules) => {
-                    println!("✓ Successfully compiled {} module(s)", modules.len());
-
-                    // Save compiled modules to build directory
-                    let build_dir = package_path.join("build/kanari/bytecode_modules");
-                    std::fs::create_dir_all(&build_dir)?;
-
-                    for (i, module_bytes) in modules.iter().enumerate() {
-                        let module_file = build_dir.join(format!("module_{}.mv", i));
-                        std::fs::write(&module_file, module_bytes)?;
-                        println!(
-                            "  Module {}: {} bytes → {:?}",
-                            i + 1,
-                            module_bytes.len(),
-                            module_file
-                        );
-                    }
-
-                    println!("✓ Modules saved to {:?}", build_dir);
-                }
-                Err(e) => {
-                    println!("❌ Compilation failed: {}", e);
-                    return Err(e);
-                }
-            }
-        }
-
-        Commands::InitMove => {
-            println!("🚀 Initializing Move VM...");
-
-            match MoveRuntime::new() {
-                Ok(mut runtime) => {
-                    println!("✓ Move VM initialized");
-
-                    // Try to load compiled modules
-                    let package_path = PathBuf::from("crates/packages/system");
-                    let build_dir = package_path.join("build");
-
-                    if build_dir.exists() {
-                        println!("📦 Loading compiled modules...");
-
-                        // Look for bytecode_modules in build directory
-                        for entry in std::fs::read_dir(&build_dir)? {
-                            let entry = entry?;
-                            let bytecode_dir = entry.path().join("bytecode_modules");
-
-                            if bytecode_dir.exists() {
-                                for module_entry in std::fs::read_dir(&bytecode_dir)? {
-                                    let module_entry = module_entry?;
-                                    let module_path = module_entry.path();
-
-                                    if module_path.extension().and_then(|s| s.to_str())
-                                        == Some("mv")
-                                    {
-                                        let module_bytes = std::fs::read(&module_path)?;
-                                        match runtime.load_module(module_bytes) {
-                                            Ok(module_id) => {
-                                                println!(
-                                                    "  ✓ Loaded: {}::{}",
-                                                    module_id.address(),
-                                                    module_id.name()
-                                                );
-                                            }
-                                            Err(e) => {
-                                                println!(
-                                                    "  ⚠️  Failed to load {}: {}",
-                                                    module_path.display(),
-                                                    e
-                                                );
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        println!("✓ Move VM ready");
-                    } else {
-                        println!("⚠️  No compiled modules found.");
-                        println!("   Run: cargo run --bin kanari-bank -- compile-move");
-                    }
-                }
-                Err(e) => {
-                    println!("❌ Failed to initialize Move VM: {}", e);
-                    return Err(e);
-                }
-            }
         }
     }
 

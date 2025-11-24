@@ -1,17 +1,23 @@
-/// Ultra Simple Transfer Module - Works with vanilla Move VM
-/// No global storage, just pure function logic
+/// Production-Ready Transfer Module
+/// Uses proper address types with validation
 module kanari_system::transfer {
     use std::vector;
 
+    /// Error codes
+    const ERR_INVALID_AMOUNT: u64 = 1;
+    const ERR_SAME_ADDRESS: u64 = 2;
+
     /// Transfer record
     struct Transfer has copy, drop {
-        from: u64,
-        to: u64,
+        from: address,
+        to: address,
         amount: u64,
     }
 
-    /// Create a transfer record
-    public fun create_transfer(from: u64, to: u64, amount: u64): Transfer {
+    /// Create a transfer record with validation
+    public fun create_transfer(from: address, to: address, amount: u64): Transfer {
+        assert!(amount > 0, ERR_INVALID_AMOUNT);
+        assert!(from != to, ERR_SAME_ADDRESS);
         Transfer { from, to, amount }
     }
 
@@ -20,11 +26,11 @@ module kanari_system::transfer {
         transfer.amount
     }
 
-    public fun get_from(transfer: &Transfer): u64 {
+    public fun get_from(transfer: &Transfer): address {
         transfer.from
     }
 
-    public fun get_to(transfer: &Transfer): u64 {
+    public fun get_to(transfer: &Transfer): address {
         transfer.to
     }
 
@@ -50,19 +56,33 @@ module kanari_system::transfer {
 
     #[test]
     fun test_create_transfer() {
-        let t = create_transfer(100, 200, 500);
-        assert!(get_from(&t) == 100, 0);
-        assert!(get_to(&t) == 200, 1);
+        let addr1 = @0x100;
+        let addr2 = @0x200;
+        let t = create_transfer(addr1, addr2, 500);
+        assert!(get_from(&t) == addr1, 0);
+        assert!(get_to(&t) == addr2, 1);
         assert!(get_amount(&t) == 500, 2);
     }
 
     #[test]
     fun test_total_amount() {
         let transfers = vector::empty<Transfer>();
-        vector::push_back(&mut transfers, create_transfer(1, 2, 100));
-        vector::push_back(&mut transfers, create_transfer(2, 3, 200));
-        vector::push_back(&mut transfers, create_transfer(3, 4, 300));
+        vector::push_back(&mut transfers, create_transfer(@0x1, @0x2, 100));
+        vector::push_back(&mut transfers, create_transfer(@0x2, @0x3, 200));
+        vector::push_back(&mut transfers, create_transfer(@0x3, @0x4, 300));
         
         assert!(total_amount(&transfers) == 600, 0);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ERR_INVALID_AMOUNT)]
+    fun test_create_transfer_zero_amount() {
+        create_transfer(@0x1, @0x2, 0);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ERR_SAME_ADDRESS)]
+    fun test_create_transfer_same_address() {
+        create_transfer(@0x1, @0x1, 100);
     }
 }

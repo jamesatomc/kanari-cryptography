@@ -39,15 +39,7 @@ impl TransferRecord {
 pub struct TransferValidator;
 
 impl TransferValidator {
-    /// Validate transfer amount and addresses
-    pub fn validate(from: u64, to: u64, amount: u64) -> Result<bool> {
-        // Basic validation rules:
-        // 1. Amount must be greater than 0
-        // 2. From and to addresses must be different
-        Ok(amount > 0 && from != to)
-    }
-
-    /// Validate transfer with addresses
+    /// Validate transfer with addresses directly
     pub fn validate_addresses(from: &AccountAddress, to: &AccountAddress, amount: u64) -> Result<bool> {
         Ok(amount > 0 && from != to)
     }
@@ -57,12 +49,12 @@ impl TransferValidator {
 pub struct TransferModule;
 
 impl TransferModule {
-    pub const SYSTEM_ADDRESS: &'static str = "0x1";
+    pub const KANARI_SYSTEM_ADDRESS: &'static str = "0x2";
     pub const TRANSFER_MODULE: &'static str = "transfer";
 
     /// Get the module ID for system::transfer
     pub fn get_module_id() -> Result<ModuleId> {
-        let address = AccountAddress::from_hex_literal(Self::SYSTEM_ADDRESS)
+        let address = AccountAddress::from_hex_literal(Self::KANARI_SYSTEM_ADDRESS)
             .context("Invalid system address")?;
         
         let module_name = Identifier::new(Self::TRANSFER_MODULE)
@@ -92,25 +84,6 @@ pub struct TransferFunctions {
     pub get_to: &'static str,
 }
 
-/// Convert AccountAddress to u64 for simplified addressing
-pub fn address_to_u64(address: &AccountAddress) -> u64 {
-    let bytes = address.to_vec();
-    let mut result = 0u64;
-    for (i, &byte) in bytes.iter().take(8).enumerate() {
-        result |= (byte as u64) << (i * 8);
-    }
-    result
-}
-
-/// Convert u64 to AccountAddress
-pub fn u64_to_address(value: u64) -> AccountAddress {
-    let mut bytes = [0u8; 32];
-    for i in 0..8 {
-        bytes[i] = ((value >> (i * 8)) & 0xFF) as u8;
-    }
-    AccountAddress::new(bytes)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -130,14 +103,17 @@ mod tests {
 
     #[test]
     fn test_transfer_validator() {
+        let addr1 = AccountAddress::from_hex_literal("0x1").unwrap();
+        let addr2 = AccountAddress::from_hex_literal("0x2").unwrap();
+        
         // Valid transfer
-        assert!(TransferValidator::validate(100, 200, 500).unwrap());
+        assert!(TransferValidator::validate_addresses(&addr1, &addr2, 500).unwrap());
         
         // Invalid: zero amount
-        assert!(!TransferValidator::validate(100, 200, 0).unwrap());
+        assert!(!TransferValidator::validate_addresses(&addr1, &addr2, 0).unwrap());
         
         // Invalid: same address
-        assert!(!TransferValidator::validate(100, 100, 500).unwrap());
+        assert!(!TransferValidator::validate_addresses(&addr1, &addr1, 500).unwrap());
     }
 
     #[test]
@@ -147,13 +123,5 @@ mod tests {
         
         let module_id = module_id.unwrap();
         assert_eq!(module_id.name().as_str(), "transfer");
-    }
-
-    #[test]
-    fn test_address_conversion() {
-        let value = 12345u64;
-        let address = u64_to_address(value);
-        let converted_back = address_to_u64(&address);
-        assert_eq!(value, converted_back);
     }
 }
