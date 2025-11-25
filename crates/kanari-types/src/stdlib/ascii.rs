@@ -3,14 +3,12 @@
 //! The ASCII module defines basic string and char newtypes that verify
 //! characters are valid ASCII.
 
-use anyhow::{Result, Context};
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    language_storage::ModuleId,
-};
-use serde::{Serialize, Deserialize};
 use crate::address::Address;
+use anyhow::{Context, Result};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
+};
+use serde::{Deserialize, Serialize};
 
 /// ASCII string structure
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -35,8 +33,7 @@ impl AsciiString {
 
     /// Convert to string
     pub fn to_string(&self) -> Result<String> {
-        String::from_utf8(self.bytes.clone())
-            .context("Invalid UTF-8 in ASCII string")
+        String::from_utf8(self.bytes.clone()).context("Invalid UTF-8 in ASCII string")
     }
 
     /// Get length
@@ -89,10 +86,10 @@ impl AsciiModule {
     pub fn get_module_id() -> Result<ModuleId> {
         let address = AccountAddress::from_hex_literal(Address::STD_ADDRESS)
             .context("Invalid std address")?;
-        
-        let module_name = Identifier::new(Self::MODULE_NAME)
-            .context("Invalid ascii module name")?;
-        
+
+        let module_name =
+            Identifier::new(Self::MODULE_NAME).context("Invalid ascii module name")?;
+
         Ok(ModuleId::new(address, module_name))
     }
 

@@ -2,13 +2,11 @@
 //!
 //! This module defines error codes and categories for Move.
 
-use anyhow::{Result, Context};
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    language_storage::ModuleId,
-};
 use crate::address::Address;
+use anyhow::{Context, Result};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
+};
 
 /// Error module constants and utilities
 pub struct ErrorModule;
@@ -35,10 +33,10 @@ impl ErrorModule {
     pub fn get_module_id() -> Result<ModuleId> {
         let address = AccountAddress::from_hex_literal(Address::STD_ADDRESS)
             .context("Invalid std address")?;
-        
-        let module_name = Identifier::new(Self::MODULE_NAME)
-            .context("Invalid error module name")?;
-        
+
+        let module_name =
+            Identifier::new(Self::MODULE_NAME).context("Invalid error module name")?;
+
         Ok(ModuleId::new(address, module_name))
     }
 
@@ -105,9 +103,18 @@ mod tests {
 
     #[test]
     fn test_error_categories() {
-        assert_eq!(ErrorModule::category_name(ErrorModule::INVALID_ARGUMENT), "INVALID_ARGUMENT");
-        assert_eq!(ErrorModule::category_name(ErrorModule::NOT_FOUND), "NOT_FOUND");
-        assert_eq!(ErrorModule::category_name(ErrorModule::INTERNAL), "INTERNAL");
+        assert_eq!(
+            ErrorModule::category_name(ErrorModule::INVALID_ARGUMENT),
+            "INVALID_ARGUMENT"
+        );
+        assert_eq!(
+            ErrorModule::category_name(ErrorModule::NOT_FOUND),
+            "NOT_FOUND"
+        );
+        assert_eq!(
+            ErrorModule::category_name(ErrorModule::INTERNAL),
+            "INTERNAL"
+        );
     }
 
     #[test]

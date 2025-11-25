@@ -13,7 +13,6 @@ pub struct PackageConfig {
 }
 
 impl PackageConfig {
-
     /// Check if this package is stdlib
     pub fn is_stdlib(&self) -> bool {
         self.address == Address::STD_ADDRESS
@@ -31,15 +30,15 @@ impl PackageConfig {
 
 /// All framework packages
 const PACKAGES: &[PackageConfig] = &[
-    PackageConfig { 
-        name: "MoveStdlib", 
-        directory: "move-stdlib", 
+    PackageConfig {
+        name: "MoveStdlib",
+        directory: "move-stdlib",
         address: Address::STD_ADDRESS,
         address_name: "std",
     },
-    PackageConfig { 
-        name: "KanariSystem", 
-        directory: "kanari-system", 
+    PackageConfig {
+        name: "KanariSystem",
+        directory: "kanari-system",
         address: Address::KANARI_SYSTEM_ADDRESS,
         address_name: "kanari_system",
     },
@@ -59,11 +58,11 @@ mod tests {
     fn test_package_configs() {
         let configs = get_package_configs();
         assert!(configs.len() >= 2);
-        
+
         let stdlib = configs.iter().find(|p| p.name == "MoveStdlib").unwrap();
         assert_eq!(stdlib.directory, "move-stdlib");
         assert_eq!(stdlib.address, Address::STD_ADDRESS);
-        
+
         let system = configs.iter().find(|p| p.name == "KanariSystem").unwrap();
         assert_eq!(system.directory, "kanari-system");
         assert_eq!(system.address, Address::KANARI_SYSTEM_ADDRESS);

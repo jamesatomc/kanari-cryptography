@@ -1,11 +1,9 @@
-use anyhow::{Result, Context};
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    language_storage::ModuleId,
-};
-use serde::{Serialize, Deserialize};
 use crate::address::Address;
+use anyhow::{Context, Result};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
+};
+use serde::{Deserialize, Serialize};
 
 /// Coin record structure
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -50,14 +48,12 @@ impl CurrencyMetadata {
 
     /// Get symbol as string
     pub fn symbol_str(&self) -> Result<String> {
-        String::from_utf8(self.symbol.clone())
-            .context("Invalid UTF-8 in symbol")
+        String::from_utf8(self.symbol.clone()).context("Invalid UTF-8 in symbol")
     }
 
     /// Get name as string
     pub fn name_str(&self) -> Result<String> {
-        String::from_utf8(self.name.clone())
-            .context("Invalid UTF-8 in name")
+        String::from_utf8(self.name.clone()).context("Invalid UTF-8 in name")
     }
 }
 
@@ -89,10 +85,9 @@ impl CoinModule {
     pub fn get_module_id() -> Result<ModuleId> {
         let address = AccountAddress::from_hex_literal(Address::KANARI_SYSTEM_ADDRESS)
             .context("Invalid system address")?;
-        
-        let module_name = Identifier::new(Self::COIN_MODULE)
-            .context("Invalid coin module name")?;
-        
+
+        let module_name = Identifier::new(Self::COIN_MODULE).context("Invalid coin module name")?;
+
         Ok(ModuleId::new(address, module_name))
     }
 

@@ -2,13 +2,11 @@
 //!
 //! A variable-sized container that can hold any type.
 
-use anyhow::{Result, Context};
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    language_storage::ModuleId,
-};
 use crate::address::Address;
+use anyhow::{Context, Result};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
+};
 
 /// Vector module constants and utilities
 pub struct VectorModule;
@@ -23,10 +21,10 @@ impl VectorModule {
     pub fn get_module_id() -> Result<ModuleId> {
         let address = AccountAddress::from_hex_literal(Address::STD_ADDRESS)
             .context("Invalid std address")?;
-        
-        let module_name = Identifier::new(Self::MODULE_NAME)
-            .context("Invalid vector module name")?;
-        
+
+        let module_name =
+            Identifier::new(Self::MODULE_NAME).context("Invalid vector module name")?;
+
         Ok(ModuleId::new(address, module_name))
     }
 

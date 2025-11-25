@@ -1,13 +1,16 @@
 mod compiler;
-mod packages_config;
 mod doc_generator;
+mod packages_config;
 
 use anyhow::Result;
-use kanari_types::address::Address;
 use clap::{Parser, Subcommand};
-use std::{env, path::{Path, PathBuf}};
-use packages_config::get_package_configs;
 use doc_generator::{generate_documentation, PackageDocConfig};
+use kanari_types::address::Address;
+use packages_config::get_package_configs;
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
 #[derive(Parser)]
 #[command(name = "packages")]
@@ -21,8 +24,8 @@ struct Cli {
 enum Commands {
     /// Compile Move packages
     Build {
-        /// Package version to compile (default: 1)
-        #[arg(long, default_value = "1")]
+        /// Package version to compile (default: latest)
+        #[arg(long, default_value = "latest")]
         version: String,
     },
     /// Generate documentation for Move packages
@@ -79,15 +82,14 @@ fn build_packages(packages_dir: &Path, version: String) -> Result<()> {
         }
 
         println!("Compiling {} ({})...", config.name, config.address);
-        compiler::compile_package(&package_dir, &output_dir, &version, config.address)
-            .map(|file| {
-                println!("✅ {}", config.name);
-                println!("   {:?}\n", file);
-            })
+        compiler::compile_package(&package_dir, &output_dir, &version, config.address).map(|file| {
+            println!("✅ {}", config.name);
+            println!("   {:?}\n", file);
+        })
     });
 
     print_summary("Compilation", success, failed);
-    
+
     Ok(())
 }
 
@@ -167,26 +169,21 @@ fn get_doc_configs(packages_dir: &Path) -> Result<Vec<PackageDocConfig>> {
             continue;
         }
 
-        let mut doc_config = PackageDocConfig::new(
-            config.directory,
-            package_path.to_str().unwrap()
-        );
+        let mut doc_config =
+            PackageDocConfig::new(config.directory, package_path.to_str().unwrap());
 
         // Add address mapping using config method
         doc_config = doc_config.with_address(config.address_name, config.address)?;
 
         // Add stdlib dependency for non-stdlib packages
         if !config.is_stdlib() {
-            doc_config = doc_config
-                .with_address("std", Address::STD_ADDRESS)?;
-            
+            doc_config = doc_config.with_address("std", Address::STD_ADDRESS)?;
+
             // Add dependency paths
             for dep in config.get_dependencies() {
                 let dep_path = packages_dir.join(format!("{}/sources", dep));
                 if dep_path.exists() {
-                    doc_config = doc_config.with_dependency(
-                        dep_path.to_string_lossy().to_string()
-                    );
+                    doc_config = doc_config.with_dependency(dep_path.to_string_lossy().to_string());
                 }
             }
         }

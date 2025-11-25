@@ -41,7 +41,8 @@ impl PackageDocConfig {
     pub fn with_address(mut self, name: &str, address: &str) -> Result<Self> {
         let numerical_addr = NumericalAddress::parse_str(address)
             .map_err(|e| anyhow::anyhow!("Failed to parse address '{}': {}", address, e))?;
-        self.named_addresses.insert(name.to_string(), numerical_addr);
+        self.named_addresses
+            .insert(name.to_string(), numerical_addr);
         Ok(self)
     }
 
@@ -107,13 +108,15 @@ pub fn generate_documentation(config: &PackageDocConfig) -> Result<()> {
 
 /// Create prover options for documentation generation
 fn make_docgen_options(config: &PackageDocConfig, sources: &[String]) -> move_prover::cli::Options {
-    let templates = config.overview_template
+    let templates = config
+        .overview_template
         .as_ref()
         .filter(|p| PathBuf::from(p).exists())
         .map(|p| vec![p.clone()])
         .unwrap_or_default();
-    
-    let references = config.references_template
+
+    let references = config
+        .references_template
         .as_ref()
         .filter(|p| PathBuf::from(p).exists())
         .cloned();
@@ -121,7 +124,9 @@ fn make_docgen_options(config: &PackageDocConfig, sources: &[String]) -> move_pr
     move_prover::cli::Options {
         move_sources: sources.to_vec(),
         move_deps: config.dependencies.clone(),
-        move_named_address_values: move_prover::cli::named_addresses_for_options(&config.named_addresses),
+        move_named_address_values: move_prover::cli::named_addresses_for_options(
+            &config.named_addresses,
+        ),
         verbosity_level: LevelFilter::Warn,
         run_docgen: true,
         docgen: move_docgen::DocgenOptions {
@@ -139,7 +144,9 @@ fn make_errmap_options(config: &PackageDocConfig, sources: &[String]) -> move_pr
     move_prover::cli::Options {
         move_sources: sources.to_vec(),
         move_deps: config.dependencies.clone(),
-        move_named_address_values: move_prover::cli::named_addresses_for_options(&config.named_addresses),
+        move_named_address_values: move_prover::cli::named_addresses_for_options(
+            &config.named_addresses,
+        ),
         verbosity_level: LevelFilter::Warn,
         run_errmapgen: true,
         errmapgen: move_errmapgen::ErrmapOptions {

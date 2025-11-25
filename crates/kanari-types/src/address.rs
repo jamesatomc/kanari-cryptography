@@ -37,7 +37,7 @@ impl Address {
 
     /// Move Standard Library address (0x1)
     pub const STD_ADDRESS: &'static str = "0x1";
-    
+
     /// Kanari System address (0x2)
     pub const KANARI_SYSTEM_ADDRESS: &'static str = "0x2";
 

@@ -15,7 +15,6 @@ use kanari_crypto::{
 mod move_runtime;
 mod move_vm_state;
 
-
 use move_runtime::MoveRuntime;
 use move_vm_state::MoveVMState;
 
@@ -139,7 +138,8 @@ fn main() -> Result<()> {
     let mut runtime = MoveRuntime::new()?;
 
     // Auto-load Move module for CLI mode
-    let default_module_path = "crates/packages/kanari-system/build/KanariSystem/bytecode_modules/transfer.mv";
+    let default_module_path =
+        "crates/packages/kanari-system/build/KanariSystem/bytecode_modules/transfer.mv";
     if std::path::Path::new(default_module_path).exists() {
         if let Ok(module_bytes) = fs::read(default_module_path) {
             let _ = runtime.load_module(module_bytes);
@@ -147,7 +147,11 @@ fn main() -> Result<()> {
     }
 
     match cli.command {
-        Commands::CreateWallet { password, curve, words } => {
+        Commands::CreateWallet {
+            password,
+            curve,
+            words,
+        } => {
             // Validate word count
             if words != 12 && words != 24 {
                 println!("❌ Invalid word count. Use 12 or 24.");
@@ -189,13 +193,7 @@ fn main() -> Result<()> {
 
             // Save wallet with proper parameters
             let private_key_hex = keypair.private_key.clone();
-            save_wallet(
-                &address,
-                &private_key_hex,
-                &mnemonic,
-                &password,
-                curve_type,
-            )?;
+            save_wallet(&address, &private_key_hex, &mnemonic, &password, curve_type)?;
 
             // Create account in Move VM state
             let addr = parse_address(&address.to_hex())?;
@@ -257,7 +255,11 @@ fn main() -> Result<()> {
             }
         }
 
-        Commands::WalletInfo { address, password, show_secrets } => {
+        Commands::WalletInfo {
+            address,
+            password,
+            show_secrets,
+        } => {
             match load_wallet(&address, &password) {
                 Ok(wallet) => {
                     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -265,12 +267,12 @@ fn main() -> Result<()> {
                     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
                     println!("📍 Address: {}", wallet.address);
                     println!("🔐 Curve: {:?}", wallet.curve_type);
-                    
+
                     // Check balance
                     let addr = parse_address(&wallet.address.to_hex())?;
                     let balance = state.get_balance(&addr);
                     println!("💰 Balance: {} coins", balance);
-                    
+
                     if show_secrets {
                         println!("\n⚠️  SENSITIVE INFORMATION (NEVER SHARE!)");
                         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");

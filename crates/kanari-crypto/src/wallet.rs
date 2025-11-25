@@ -167,7 +167,9 @@ pub fn save_wallet(
 
     // Warn if password is not strong (optional: make this mandatory)
     if !crate::is_password_strong(password) {
-        log::warn!("Warning: Password does not meet recommended strength requirements (16+ chars, mixed case, numbers, special chars)");
+        log::warn!(
+            "Warning: Password does not meet recommended strength requirements (16+ chars, mixed case, numbers, special chars)"
+        );
     }
 
     if private_key.is_empty() {
@@ -373,7 +375,9 @@ pub fn save_mnemonic(
 
     // Warn if password is not strong (optional: make this mandatory)
     if !crate::is_password_strong(password) {
-        log::warn!("Warning: Password does not meet recommended strength requirements (16+ chars, mixed case, numbers, special chars)");
+        log::warn!(
+            "Warning: Password does not meet recommended strength requirements (16+ chars, mixed case, numbers, special chars)"
+        );
     }
 
     if mnemonic.is_empty() {
@@ -584,20 +588,20 @@ pub fn get_selected_wallet() -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::keys::{generate_keypair, CurveType};
+    use crate::keys::{CurveType, generate_keypair};
 
     // Helper to create a test wallet
     fn create_test_wallet() -> (Wallet, String) {
         let keypair = generate_keypair(CurveType::K256).unwrap();
         let password = "TestPassword123!";
-        
+
         let wallet = Wallet::new(
             Address::from_str(&keypair.address).unwrap(),
             keypair.private_key,
             "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about".to_string(),
             CurveType::K256,
         );
-        
+
         (wallet, password.to_string())
     }
 
@@ -609,7 +613,7 @@ mod tests {
     fn test_save_wallet_rejects_empty_password() {
         let keypair = generate_keypair(CurveType::K256).unwrap();
         let address = Address::from_str(&keypair.address).unwrap();
-        
+
         let result = save_wallet(
             &address,
             &keypair.private_key,
@@ -617,16 +621,19 @@ mod tests {
             "", // Empty password
             CurveType::K256,
         );
-        
+
         assert!(result.is_err(), "Empty password should be rejected");
-        assert!(matches!(result.unwrap_err(), WalletError::EncryptionError(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            WalletError::EncryptionError(_)
+        ));
     }
 
     #[test]
     fn test_save_wallet_rejects_short_password() {
         let keypair = generate_keypair(CurveType::K256).unwrap();
         let address = Address::from_str(&keypair.address).unwrap();
-        
+
         let result = save_wallet(
             &address,
             &keypair.private_key,
@@ -634,12 +641,12 @@ mod tests {
             "short", // Only 5 characters
             CurveType::K256,
         );
-        
+
         assert!(result.is_err(), "Password < 8 chars should be rejected");
         match result.unwrap_err() {
             WalletError::EncryptionError(msg) => {
                 assert!(msg.contains("at least 8 characters"));
-            },
+            }
             _ => panic!("Expected EncryptionError"),
         }
     }
@@ -650,9 +657,9 @@ mod tests {
         // In a real scenario, we'd need to mock the filesystem
         let keypair = generate_keypair(CurveType::K256).unwrap();
         let address = Address::from_str(&keypair.address).unwrap();
-        
+
         let password = "12345678"; // Exactly 8 characters
-        
+
         // This test would need proper filesystem mocking to work
         // For now, just verify the validation logic doesn't reject it
         let result = save_wallet(
@@ -662,11 +669,13 @@ mod tests {
             password,
             CurveType::K256,
         );
-        
+
         // May fail on filesystem operations, but shouldn't fail on validation
         if let Err(e) = result {
             // Should not be password validation error
-            assert!(!matches!(e, WalletError::EncryptionError(msg) if msg.contains("at least 8 characters")));
+            assert!(
+                !matches!(e, WalletError::EncryptionError(msg) if msg.contains("at least 8 characters"))
+            );
         }
     }
 
@@ -680,7 +689,7 @@ mod tests {
     #[test]
     fn test_save_wallet_rejects_empty_private_key() {
         let address = Address::from_str("0x1234567890123456789012345678901234567890").unwrap();
-        
+
         let result = save_wallet(
             &address,
             "", // Empty private key
@@ -688,9 +697,12 @@ mod tests {
             "ValidPassword123",
             CurveType::K256,
         );
-        
+
         assert!(result.is_err(), "Empty private key should be rejected");
-        assert!(matches!(result.unwrap_err(), WalletError::EncryptionError(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            WalletError::EncryptionError(_)
+        ));
     }
 
     // ============================================================================
@@ -700,7 +712,7 @@ mod tests {
     #[test]
     fn test_wallet_creation() {
         let (wallet, _) = create_test_wallet();
-        
+
         assert!(!wallet.address.to_string().is_empty());
         assert!(wallet.private_key.starts_with("kanari"));
         assert!(!wallet.seed_phrase.is_empty());
@@ -711,7 +723,7 @@ mod tests {
     fn test_wallet_sign_message() {
         let (wallet, password) = create_test_wallet();
         let message = b"Test message to sign";
-        
+
         let signature = wallet.sign(message, &password);
         assert!(signature.is_ok(), "Signing should succeed");
         assert!(!signature.unwrap().is_empty());
@@ -721,7 +733,7 @@ mod tests {
     fn test_wallet_sign_empty_message_fails() {
         let (wallet, password) = create_test_wallet();
         let empty_message = b"";
-        
+
         let result = wallet.sign(empty_message, &password);
         assert!(result.is_err(), "Cannot sign empty message");
         assert!(matches!(result.unwrap_err(), WalletError::SigningError(_)));
@@ -731,7 +743,7 @@ mod tests {
     fn test_wallet_sign_empty_password_fails() {
         let (wallet, _) = create_test_wallet();
         let message = b"Test message";
-        
+
         let result = wallet.sign(message, "");
         assert!(result.is_err(), "Cannot sign with empty password");
         assert!(matches!(result.unwrap_err(), WalletError::InvalidPassword));
@@ -741,10 +753,10 @@ mod tests {
     fn test_wallet_verify_signature() {
         let (wallet, password) = create_test_wallet();
         let message = b"Test message";
-        
+
         let signature = wallet.sign(message, &password).unwrap();
         let verified = wallet.verify(message, &signature);
-        
+
         assert!(verified.is_ok());
         assert!(verified.unwrap(), "Signature should verify");
     }
@@ -754,10 +766,10 @@ mod tests {
         let (wallet, password) = create_test_wallet();
         let message1 = b"Original message";
         let message2 = b"Different message";
-        
+
         let signature = wallet.sign(message1, &password).unwrap();
         let verified = wallet.verify(message2, &signature).unwrap();
-        
+
         assert!(!verified, "Wrong message should not verify");
     }
 
@@ -765,7 +777,7 @@ mod tests {
     fn test_wallet_verify_empty_message_fails() {
         let (wallet, _) = create_test_wallet();
         let signature = vec![0u8; 64];
-        
+
         let result = wallet.verify(b"", &signature);
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), WalletError::SigningError(_)));
@@ -775,7 +787,7 @@ mod tests {
     fn test_wallet_verify_empty_signature_fails() {
         let (wallet, _) = create_test_wallet();
         let message = b"test";
-        
+
         let result = wallet.verify(message, b"");
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), WalletError::SigningError(_)));
@@ -786,11 +798,11 @@ mod tests {
         // This test verifies that signing clears the private key copy from memory
         let (wallet, password) = create_test_wallet();
         let message = b"Test";
-        
+
         // Sign message - internally should clear private key copy
         let result = wallet.sign(message, &password);
         assert!(result.is_ok());
-        
+
         // Original wallet private key should still be intact
         assert!(!wallet.private_key.is_empty());
         assert!(wallet.private_key.starts_with("kanari"));
@@ -800,7 +812,7 @@ mod tests {
     fn test_private_key_formatting() {
         let keypair = generate_keypair(CurveType::Ed25519).unwrap();
         let address = Address::from_str(&keypair.address).unwrap();
-        
+
         // Test with kanari prefix
         let wallet1 = Wallet::new(
             address,
@@ -809,7 +821,7 @@ mod tests {
             CurveType::Ed25519,
         );
         assert!(wallet1.private_key.starts_with("kanari"));
-        
+
         // Test without kanari prefix - save_wallet should add it
         let raw_key = keypair.private_key.trim_start_matches("kanari");
         // Can't test save_wallet fully without filesystem mocking
@@ -831,12 +843,8 @@ mod tests {
 
     #[test]
     fn test_wallet_with_different_curves() {
-        let curves = vec![
-            CurveType::K256,
-            CurveType::P256,
-            CurveType::Ed25519,
-        ];
-        
+        let curves = vec![CurveType::K256, CurveType::P256, CurveType::Ed25519];
+
         for curve in curves {
             let keypair = generate_keypair(curve).unwrap();
             let wallet = Wallet::new(
@@ -845,9 +853,9 @@ mod tests {
                 "seed".to_string(),
                 curve,
             );
-            
+
             assert_eq!(wallet.curve_type, curve);
-            
+
             // Test signing with each curve
             let message = b"test";
             let signature = wallet.sign(message, "password");

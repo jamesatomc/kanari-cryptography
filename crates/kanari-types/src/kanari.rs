@@ -1,10 +1,8 @@
-use anyhow::{Result, Context};
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    language_storage::ModuleId,
-};
 use crate::address::Address;
+use anyhow::{Context, Result};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
+};
 
 /// Kanari module constants and utilities
 pub struct KanariModule;
@@ -25,10 +23,10 @@ impl KanariModule {
     pub fn get_module_id() -> Result<ModuleId> {
         let address = AccountAddress::from_hex_literal(Address::KANARI_SYSTEM_ADDRESS)
             .context("Invalid system address")?;
-        
-        let module_name = Identifier::new(Self::KANARI_MODULE)
-            .context("Invalid kanari module name")?;
-        
+
+        let module_name =
+            Identifier::new(Self::KANARI_MODULE).context("Invalid kanari module name")?;
+
         Ok(ModuleId::new(address, module_name))
     }
 
@@ -70,16 +68,31 @@ mod tests {
 
     #[test]
     fn test_amount_conversion() {
-        assert_eq!(KanariModule::kanari_to_mist(1), KanariModule::MIST_PER_KANARI);
-        assert_eq!(KanariModule::kanari_to_mist(100), 100 * KanariModule::MIST_PER_KANARI);
-        assert_eq!(KanariModule::mist_to_kanari(KanariModule::MIST_PER_KANARI), 1);
-        assert_eq!(KanariModule::mist_to_kanari(KanariModule::TOTAL_SUPPLY_MIST), KanariModule::TOTAL_SUPPLY_KANARI);
+        assert_eq!(
+            KanariModule::kanari_to_mist(1),
+            KanariModule::MIST_PER_KANARI
+        );
+        assert_eq!(
+            KanariModule::kanari_to_mist(100),
+            100 * KanariModule::MIST_PER_KANARI
+        );
+        assert_eq!(
+            KanariModule::mist_to_kanari(KanariModule::MIST_PER_KANARI),
+            1
+        );
+        assert_eq!(
+            KanariModule::mist_to_kanari(KanariModule::TOTAL_SUPPLY_MIST),
+            KanariModule::TOTAL_SUPPLY_KANARI
+        );
     }
 
     #[test]
     fn test_format_kanari() {
         assert_eq!(KanariModule::format_kanari(1_000_000_000), "1 KANARI");
-        assert_eq!(KanariModule::format_kanari(1_500_000_000), "1.500000000 KANARI");
+        assert_eq!(
+            KanariModule::format_kanari(1_500_000_000),
+            "1.500000000 KANARI"
+        );
         assert_eq!(KanariModule::format_kanari(1), "0.000000001 KANARI");
     }
 

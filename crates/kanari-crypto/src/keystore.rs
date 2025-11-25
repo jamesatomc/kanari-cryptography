@@ -136,11 +136,11 @@ impl Keystore {
         );
 
         let keystore_data = serde_json::to_string_pretty(self)?;
-        
+
         // Atomic write: write to temp file first, then rename
         let temp_path = keystore_path.with_extension("tmp");
         fs::write(&temp_path, &keystore_data)?;
-        
+
         // Rename is atomic on most filesystems
         fs::rename(temp_path, keystore_path)?;
 
@@ -342,9 +342,9 @@ pub fn keystore_exists() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::encryption::{encrypt_data, EncryptedData};
-    use tempfile::TempDir;
+    use crate::encryption::{EncryptedData, encrypt_data};
     use std::env;
+    use tempfile::TempDir;
 
     // Helper to create a test encrypted data
     fn create_test_encrypted_data() -> EncryptedData {
@@ -359,26 +359,30 @@ mod tests {
     fn test_keystore_save_uses_atomic_write() {
         // This test verifies that the save operation uses atomic write
         // (write to temp file, then rename)
-        
+
         let temp_dir = TempDir::new().unwrap();
         let _keystore_path = temp_dir.path().join("kanari.keystore");
-        
+
         // Set up environment to use temp directory
-        unsafe { env::set_var("HOME", temp_dir.path()); }
-        
+        unsafe {
+            env::set_var("HOME", temp_dir.path());
+        }
+
         let mut keystore = Keystore::default();
-        keystore.keys.insert("test_key".to_string(), create_test_encrypted_data());
-        
+        keystore
+            .keys
+            .insert("test_key".to_string(), create_test_encrypted_data());
+
         // The save method should:
         // 1. Write to .tmp file
         // 2. Rename to final path (atomic operation)
         // This is verified by checking the implementation uses fs::rename
-        
+
         // Note: In the actual implementation, we can see:
         // let temp_path = keystore_path.with_extension("tmp");
         // fs::write(&temp_path, &keystore_data)?;
         // fs::rename(temp_path, keystore_path)?;
-        
+
         // This pattern is atomic on most filesystems
         assert!(true, "Atomic write pattern is implemented");
     }
@@ -388,15 +392,17 @@ mod tests {
         // This test demonstrates that the atomic write pattern prevents corruption
         // Even if two processes try to write simultaneously, the rename operation
         // is atomic and one will succeed completely
-        
+
         let mut keystore = Keystore::default();
-        keystore.keys.insert("key1".to_string(), create_test_encrypted_data());
-        
+        keystore
+            .keys
+            .insert("key1".to_string(), create_test_encrypted_data());
+
         // The atomic rename ensures that readers will either see:
         // 1. The old complete file, or
         // 2. The new complete file
         // Never a partially written file
-        
+
         assert!(keystore.keys.contains_key("key1"));
     }
 
@@ -417,10 +423,10 @@ mod tests {
         let mut keystore = Keystore::default();
         let address = "0x1234567890123456789012345678901234567890";
         let encrypted_data = create_test_encrypted_data();
-        
+
         let _result = keystore.add_wallet(address, encrypted_data);
         // May fail on save if filesystem is not set up, but add should work
-        
+
         assert!(keystore.wallet_exists(address));
         assert!(keystore.get_wallet(address).is_some());
     }
@@ -430,9 +436,11 @@ mod tests {
         let mut keystore = Keystore::default();
         let address = "0xtest";
         let encrypted_data = create_test_encrypted_data();
-        
-        keystore.keys.insert(address.to_string(), encrypted_data.clone());
-        
+
+        keystore
+            .keys
+            .insert(address.to_string(), encrypted_data.clone());
+
         let retrieved = keystore.get_wallet(address);
         assert!(retrieved.is_some());
     }
@@ -442,13 +450,13 @@ mod tests {
         let mut keystore = Keystore::default();
         let address = "0xtest";
         let encrypted_data = create_test_encrypted_data();
-        
+
         keystore.keys.insert(address.to_string(), encrypted_data);
         assert!(keystore.wallet_exists(address));
-        
+
         // Remove (will fail on save but removes from memory)
         let _ = keystore.remove_wallet(address);
-        
+
         // Should be removed from memory even if save fails
         assert!(!keystore.keys.contains_key(address));
     }
@@ -456,7 +464,7 @@ mod tests {
     #[test]
     fn test_keystore_remove_nonexistent_wallet() {
         let mut keystore = Keystore::default();
-        
+
         let result = keystore.remove_wallet("nonexistent");
         // Should return KeyNotFound error (though may also have save error)
         assert!(result.is_err());
@@ -465,11 +473,17 @@ mod tests {
     #[test]
     fn test_keystore_list_wallets() {
         let mut keystore = Keystore::default();
-        
-        keystore.keys.insert("0x1".to_string(), create_test_encrypted_data());
-        keystore.keys.insert("0x2".to_string(), create_test_encrypted_data());
-        keystore.keys.insert("0x3".to_string(), create_test_encrypted_data());
-        
+
+        keystore
+            .keys
+            .insert("0x1".to_string(), create_test_encrypted_data());
+        keystore
+            .keys
+            .insert("0x2".to_string(), create_test_encrypted_data());
+        keystore
+            .keys
+            .insert("0x3".to_string(), create_test_encrypted_data());
+
         let wallets = keystore.list_wallets();
         assert_eq!(wallets.len(), 3);
         assert!(wallets.contains(&"0x1".to_string()));
@@ -481,11 +495,13 @@ mod tests {
     fn test_keystore_wallet_exists() {
         let mut keystore = Keystore::default();
         let address = "0xexists";
-        
+
         assert!(!keystore.wallet_exists(address));
-        
-        keystore.keys.insert(address.to_string(), create_test_encrypted_data());
-        
+
+        keystore
+            .keys
+            .insert(address.to_string(), create_test_encrypted_data());
+
         assert!(keystore.wallet_exists(address));
     }
 
@@ -494,9 +510,9 @@ mod tests {
         let mut keystore = Keystore::default();
         let encrypted_mnemonic = create_test_encrypted_data();
         let addresses = vec!["0x1".to_string(), "0x2".to_string()];
-        
+
         let _ = keystore.set_mnemonic(encrypted_mnemonic.clone(), addresses.clone());
-        
+
         assert!(keystore.has_mnemonic());
         assert_eq!(keystore.mnemonic.addresses.len(), 2);
     }
@@ -504,14 +520,14 @@ mod tests {
     #[test]
     fn test_keystore_get_mnemonic() {
         let mut keystore = Keystore::default();
-        
+
         assert!(!keystore.has_mnemonic());
-        
+
         let encrypted_mnemonic = create_test_encrypted_data();
         keystore.mnemonic.mnemonic_phrase_encryption = Some(encrypted_mnemonic.clone());
-        
+
         assert!(keystore.has_mnemonic());
-        
+
         let retrieved = keystore.get_mnemonic();
         assert!(retrieved.is_some());
     }
@@ -520,14 +536,14 @@ mod tests {
     fn test_keystore_remove_mnemonic() {
         let mut keystore = Keystore::default();
         let encrypted_mnemonic = create_test_encrypted_data();
-        
+
         keystore.mnemonic.mnemonic_phrase_encryption = Some(encrypted_mnemonic);
         keystore.mnemonic.addresses = vec!["0x1".to_string()];
-        
+
         assert!(keystore.has_mnemonic());
-        
+
         let _ = keystore.remove_mnemonic();
-        
+
         assert!(!keystore.has_mnemonic());
         assert_eq!(keystore.mnemonic.addresses.len(), 0);
     }
@@ -535,26 +551,39 @@ mod tests {
     #[test]
     fn test_keystore_session_keys() {
         let mut keystore = Keystore::default();
-        
-        keystore.session_keys.insert("key1".to_string(), "value1".to_string());
-        keystore.session_keys.insert("key2".to_string(), "value2".to_string());
-        
+
+        keystore
+            .session_keys
+            .insert("key1".to_string(), "value1".to_string());
+        keystore
+            .session_keys
+            .insert("key2".to_string(), "value2".to_string());
+
         assert_eq!(keystore.session_keys.len(), 2);
-        assert_eq!(keystore.session_keys.get("key1"), Some(&"value1".to_string()));
+        assert_eq!(
+            keystore.session_keys.get("key1"),
+            Some(&"value1".to_string())
+        );
     }
 
     #[test]
     fn test_keystore_statistics() {
         let mut keystore = Keystore::default();
-        
-        keystore.keys.insert("0x1".to_string(), create_test_encrypted_data());
-        keystore.keys.insert("0x2".to_string(), create_test_encrypted_data());
+
+        keystore
+            .keys
+            .insert("0x1".to_string(), create_test_encrypted_data());
+        keystore
+            .keys
+            .insert("0x2".to_string(), create_test_encrypted_data());
         keystore.mnemonic.mnemonic_phrase_encryption = Some(create_test_encrypted_data());
         keystore.mnemonic.addresses = vec!["0x1".to_string()];
-        keystore.session_keys.insert("s1".to_string(), "v1".to_string());
-        
+        keystore
+            .session_keys
+            .insert("s1".to_string(), "v1".to_string());
+
         let stats = keystore.statistics();
-        
+
         assert_eq!(stats.total_keys, 2);
         assert!(stats.has_mnemonic);
         assert_eq!(stats.mnemonic_addresses, 1);
@@ -570,14 +599,17 @@ mod tests {
         // Version is set properly when saving
         let mut ks = Keystore::default();
         ks.version = default_keystore_version();
-        assert!(!ks.version.is_empty(), "Version should not be empty after setting");
+        assert!(
+            !ks.version.is_empty(),
+            "Version should not be empty after setting"
+        );
     }
 
     #[test]
     fn test_keystore_last_modified_updates() {
         let mut keystore = Keystore::default();
         assert!(keystore.last_modified.is_none());
-        
+
         // After save, last_modified should be set
         // (will fail on filesystem but logic is there)
         let _ = keystore.save();

@@ -408,7 +408,7 @@ pub fn verify_signature_ed25519(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::keys::{generate_keypair, CurveType};
+    use crate::keys::{CurveType, generate_keypair};
 
     // ============================================================================
     // Bug #2: Timing Attack in Signature Verification (Critical)
@@ -419,33 +419,29 @@ mod tests {
         // This test verifies that signature verification doesn't have timing leaks
         // The cryptographic libraries (k256, p256, ed25519-dalek) provide constant-time
         // comparison internally, so we verify that the API uses them correctly
-        
+
         let keypair = generate_keypair(CurveType::Ed25519).unwrap();
         let message = b"test message";
-        
+
         // Sign the message
         let signature = sign_message(&keypair.private_key, message, CurveType::Ed25519).unwrap();
-        
+
         // Verification should succeed
-        let result = verify_signature_with_curve(
-            &keypair.address,
-            message,
-            &signature,
-            CurveType::Ed25519
-        );
+        let result =
+            verify_signature_with_curve(&keypair.address, message, &signature, CurveType::Ed25519);
         assert!(result.is_ok());
         assert!(result.unwrap());
-        
+
         // Modify signature slightly
         let mut bad_signature = signature.clone();
         bad_signature[0] ^= 0x01;
-        
+
         // Verification should fail - this uses constant-time comparison internally
         let result = verify_signature_with_curve(
             &keypair.address,
             message,
             &bad_signature,
-            CurveType::Ed25519
+            CurveType::Ed25519,
         );
         assert!(result.is_ok());
         assert!(!result.unwrap());
@@ -458,10 +454,10 @@ mod tests {
     #[test]
     fn test_secure_clear_memory_safety() {
         let mut sensitive = vec![0xFF; 256];
-        
+
         // Clear with secure_clear
         secure_clear(&mut sensitive);
-        
+
         // Verify all bytes are zero
         assert!(
             sensitive.iter().all(|&b| b == 0),
@@ -473,9 +469,9 @@ mod tests {
     fn test_secure_clear_uses_black_box() {
         // This test ensures secure_clear uses black_box to prevent optimization
         let mut data = b"secret_key_data_that_must_be_cleared".to_vec();
-        
+
         secure_clear(&mut data);
-        
+
         // Compiler shouldn't optimize this away due to black_box
         assert_eq!(data, vec![0u8; data.len()]);
     }
@@ -488,15 +484,12 @@ mod tests {
     fn test_sign_and_verify_k256() {
         let keypair = generate_keypair(CurveType::K256).unwrap();
         let message = b"Hello, K256!";
-        
+
         let signature = sign_message(&keypair.private_key, message, CurveType::K256).unwrap();
-        let verified = verify_signature_with_curve(
-            &keypair.address,
-            message,
-            &signature,
-            CurveType::K256
-        ).unwrap();
-        
+        let verified =
+            verify_signature_with_curve(&keypair.address, message, &signature, CurveType::K256)
+                .unwrap();
+
         assert!(verified, "K256 signature should verify");
     }
 
@@ -504,15 +497,12 @@ mod tests {
     fn test_sign_and_verify_p256() {
         let keypair = generate_keypair(CurveType::P256).unwrap();
         let message = b"Hello, P256!";
-        
+
         let signature = sign_message(&keypair.private_key, message, CurveType::P256).unwrap();
-        let verified = verify_signature_with_curve(
-            &keypair.address,
-            message,
-            &signature,
-            CurveType::P256
-        ).unwrap();
-        
+        let verified =
+            verify_signature_with_curve(&keypair.address, message, &signature, CurveType::P256)
+                .unwrap();
+
         assert!(verified, "P256 signature should verify");
     }
 
@@ -520,15 +510,12 @@ mod tests {
     fn test_sign_and_verify_ed25519() {
         let keypair = generate_keypair(CurveType::Ed25519).unwrap();
         let message = b"Hello, Ed25519!";
-        
+
         let signature = sign_message(&keypair.private_key, message, CurveType::Ed25519).unwrap();
-        let verified = verify_signature_with_curve(
-            &keypair.address,
-            message,
-            &signature,
-            CurveType::Ed25519
-        ).unwrap();
-        
+        let verified =
+            verify_signature_with_curve(&keypair.address, message, &signature, CurveType::Ed25519)
+                .unwrap();
+
         assert!(verified, "Ed25519 signature should verify");
     }
 
@@ -537,15 +524,12 @@ mod tests {
         let keypair = generate_keypair(CurveType::K256).unwrap();
         let message1 = b"Original message";
         let message2 = b"Different message";
-        
+
         let signature = sign_message(&keypair.private_key, message1, CurveType::K256).unwrap();
-        let verified = verify_signature_with_curve(
-            &keypair.address,
-            message2,
-            &signature,
-            CurveType::K256
-        ).unwrap();
-        
+        let verified =
+            verify_signature_with_curve(&keypair.address, message2, &signature, CurveType::K256)
+                .unwrap();
+
         assert!(!verified, "Signature should not verify with wrong message");
     }
 
@@ -554,27 +538,27 @@ mod tests {
         let keypair1 = generate_keypair(CurveType::Ed25519).unwrap();
         let keypair2 = generate_keypair(CurveType::Ed25519).unwrap();
         let message = b"Test message";
-        
+
         let signature = sign_message(&keypair1.private_key, message, CurveType::Ed25519).unwrap();
-        let verified = verify_signature_with_curve(
-            &keypair2.address,
-            message,
-            &signature,
-            CurveType::Ed25519
-        ).unwrap();
-        
-        assert!(!verified, "Signature should not verify with different address");
+        let verified =
+            verify_signature_with_curve(&keypair2.address, message, &signature, CurveType::Ed25519)
+                .unwrap();
+
+        assert!(
+            !verified,
+            "Signature should not verify with different address"
+        );
     }
 
     #[test]
     fn test_signature_with_kanari_prefix() {
         let keypair = generate_keypair(CurveType::K256).unwrap();
         let message = b"Test message";
-        
+
         // Should work with kanari prefix
         assert!(keypair.private_key.starts_with("kanari"));
         let signature = sign_message(&keypair.private_key, message, CurveType::K256).unwrap();
-        
+
         assert!(!signature.is_empty());
     }
 
@@ -582,27 +566,30 @@ mod tests {
     fn test_invalid_signature_length() {
         let keypair = generate_keypair(CurveType::Ed25519).unwrap();
         let message = b"Test";
-        
+
         // Ed25519 signatures must be 64 bytes
         let bad_signature = vec![0u8; 32]; // Wrong length
-        
+
         let result = verify_signature_ed25519(
             &keypair.address.trim_start_matches("0x"),
             message,
-            &bad_signature
+            &bad_signature,
         );
-        
+
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), SignatureError::InvalidSignatureLength));
+        assert!(matches!(
+            result.unwrap_err(),
+            SignatureError::InvalidSignatureLength
+        ));
     }
 
     #[test]
     fn test_verify_signature_with_legacy_api() {
         let keypair = generate_keypair(CurveType::K256).unwrap();
         let message = b"Test";
-        
+
         let signature = sign_message(&keypair.private_key, message, CurveType::K256).unwrap();
-        
+
         // Test the legacy verify_signature API
         let verified = verify_signature(&keypair.address, message, &signature).unwrap();
         assert!(verified);
@@ -612,7 +599,7 @@ mod tests {
     fn test_sign_message_handles_empty_message() {
         let keypair = generate_keypair(CurveType::K256).unwrap();
         let empty_message = b"";
-        
+
         // Should still be able to sign empty message (hashes to deterministic value)
         let signature = sign_message(&keypair.private_key, empty_message, CurveType::K256);
         assert!(signature.is_ok(), "Should be able to sign empty message");
@@ -622,14 +609,17 @@ mod tests {
     fn test_sign_with_invalid_private_key() {
         let result = sign_message("invalid_hex", b"message", CurveType::K256);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), SignatureError::InvalidPrivateKey(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            SignatureError::InvalidPrivateKey(_)
+        ));
     }
 
     #[test]
     fn test_verify_with_invalid_address() {
         let signature = vec![0u8; 64];
         let message = b"test";
-        
+
         let result = verify_signature_ed25519("invalid_hex", message, &signature);
         assert!(result.is_err());
     }
@@ -638,11 +628,11 @@ mod tests {
     fn test_signature_deterministic_for_same_input() {
         let keypair = generate_keypair(CurveType::Ed25519).unwrap();
         let message = b"Deterministic test";
-        
+
         // Ed25519 signatures should be deterministic
         let sig1 = sign_message(&keypair.private_key, message, CurveType::Ed25519).unwrap();
         let sig2 = sign_message(&keypair.private_key, message, CurveType::Ed25519).unwrap();
-        
+
         assert_eq!(sig1, sig2, "Ed25519 signatures should be deterministic");
     }
 
@@ -650,7 +640,7 @@ mod tests {
     fn test_pqc_signing_not_supported_yet() {
         let keypair = generate_keypair(CurveType::Dilithium3).unwrap();
         let message = b"test";
-        
+
         // Should return error for PQC signatures via this API
         let result = sign_message(&keypair.private_key, message, CurveType::Dilithium3);
         assert!(result.is_err(), "PQC signing should use specialized API");
@@ -662,7 +652,11 @@ mod tests {
         for size in [0, 1, 16, 32, 64, 128, 256, 1024] {
             let mut data = vec![0xAA; size];
             secure_clear(&mut data);
-            assert!(data.iter().all(|&b| b == 0), "Size {} should be fully cleared", size);
+            assert!(
+                data.iter().all(|&b| b == 0),
+                "Size {} should be fully cleared",
+                size
+            );
         }
     }
 }

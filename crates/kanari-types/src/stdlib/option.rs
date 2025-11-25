@@ -2,14 +2,12 @@
 //!
 //! This module defines the Option type to represent and handle optional values.
 
-use anyhow::{Result, Context};
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    language_storage::ModuleId,
-};
-use serde::{Serialize, Deserialize};
 use crate::address::Address;
+use anyhow::{Context, Result};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
+};
+use serde::{Deserialize, Serialize};
 
 /// Option value representation
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -94,10 +92,10 @@ impl OptionModule {
     pub fn get_module_id() -> Result<ModuleId> {
         let address = AccountAddress::from_hex_literal(Address::STD_ADDRESS)
             .context("Invalid std address")?;
-        
-        let module_name = Identifier::new(Self::MODULE_NAME)
-            .context("Invalid option module name")?;
-        
+
+        let module_name =
+            Identifier::new(Self::MODULE_NAME).context("Invalid option module name")?;
+
         Ok(ModuleId::new(address, module_name))
     }
 
@@ -156,7 +154,7 @@ mod tests {
         let rust_opt = Some(100);
         let move_opt: OptionValue<i32> = rust_opt.into();
         assert!(move_opt.is_some());
-        
+
         let back: Option<i32> = move_opt.into();
         assert_eq!(back, Some(100));
     }

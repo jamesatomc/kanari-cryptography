@@ -1,16 +1,16 @@
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
+use bcs;
+use kanari_types::transfer::TransferModule;
 use move_binary_format::CompiledModule;
 use move_core_types::{
     account_address::AccountAddress,
     identifier::Identifier,
     language_storage::{ModuleId, TypeTag},
-    resolver::{ModuleResolver, ResourceResolver, LinkageResolver},
+    resolver::{LinkageResolver, ModuleResolver, ResourceResolver},
 };
 use move_vm_runtime::move_vm::MoveVM;
 use move_vm_types::gas::UnmeteredGasMeter;
 use std::collections::HashMap;
-use kanari_types::transfer::TransferModule;
-use bcs;
 
 /// Simple storage implementation for Move VM
 pub struct SimpleStorage {
@@ -32,7 +32,10 @@ impl SimpleStorage {
 impl ModuleResolver for SimpleStorage {
     type Error = anyhow::Error;
 
-    fn get_module(&self, module_id: &ModuleId) -> std::result::Result<Option<Vec<u8>>, Self::Error> {
+    fn get_module(
+        &self,
+        module_id: &ModuleId,
+    ) -> std::result::Result<Option<Vec<u8>>, Self::Error> {
         Ok(self.modules.get(module_id).cloned())
     }
 }
@@ -63,7 +66,7 @@ pub struct MoveRuntime {
 impl MoveRuntime {
     pub fn new() -> Result<Self> {
         let vm = MoveVM::new(vec![]).context("Failed to create Move VM")?;
-        
+
         Ok(Self {
             vm,
             storage: SimpleStorage::new(),
@@ -74,10 +77,10 @@ impl MoveRuntime {
     pub fn load_module(&mut self, module_bytes: Vec<u8>) -> Result<ModuleId> {
         let compiled_module = CompiledModule::deserialize_with_defaults(&module_bytes)
             .context("Failed to deserialize module")?;
-        
+
         let module_id = compiled_module.self_id();
         self.storage.add_module(module_id.clone(), module_bytes);
-        
+
         Ok(module_id)
     }
 
@@ -92,9 +95,8 @@ impl MoveRuntime {
     ) -> Result<Vec<Vec<u8>>> {
         // Create a new session with our storage
         let mut session = self.vm.new_session(&self.storage);
-        
-        let function_name = Identifier::new(function_name)
-            .context("Invalid function name")?;
+
+        let function_name = Identifier::new(function_name).context("Invalid function name")?;
 
         // Execute the function
         let return_values = session
@@ -108,7 +110,8 @@ impl MoveRuntime {
             .context("Failed to execute function")?;
 
         // Extract just the byte vectors from the return values
-        let results = return_values.return_values
+        let results = return_values
+            .return_values
             .into_iter()
             .map(|(bytes, _layout)| bytes)
             .collect();
@@ -117,16 +120,19 @@ impl MoveRuntime {
     }
 
     /// Validate transfer using Move VM by calling Move function
-    pub fn validate_transfer(&mut self, from: &AccountAddress, to: &AccountAddress, amount: u64) -> Result<bool> {
+    pub fn validate_transfer(
+        &mut self,
+        from: &AccountAddress,
+        to: &AccountAddress,
+        amount: u64,
+    ) -> Result<bool> {
         // Try to call Move function if module is loaded
         let module_id = TransferModule::get_module_id()?;
-        
+
         // Check if module is loaded
         if self.storage.modules.contains_key(&module_id) {
             // Serialize arguments
-            let args = vec![
-                bcs::to_bytes(&amount)?,
-            ];
+            let args = vec![bcs::to_bytes(&amount)?];
 
             // Call is_valid_amount function
             match self.execute_function(
@@ -149,16 +155,21 @@ impl MoveRuntime {
                 }
             }
         }
-        
+
         // Fallback: Simple validation if module not loaded
         // Note: In production, consider rejecting if Move module is required
         Ok(amount > 0 && from != to)
     }
 
     /// Create a transfer record using Move VM
-    pub fn create_transfer_record(&mut self, from: &AccountAddress, to: &AccountAddress, amount: u64) -> Result<Vec<u8>> {
+    pub fn create_transfer_record(
+        &mut self,
+        from: &AccountAddress,
+        to: &AccountAddress,
+        amount: u64,
+    ) -> Result<Vec<u8>> {
         let module_id = TransferModule::get_module_id()?;
-        
+
         // Serialize arguments - AccountAddress is serialized directly via BCS
         let args = vec![
             bcs::to_bytes(from)?,
@@ -185,7 +196,7 @@ impl MoveRuntime {
     /// Get transfer amount from transfer record
     pub fn get_transfer_amount(&mut self, transfer_bytes: Vec<u8>) -> Result<u64> {
         let module_id = TransferModule::get_module_id()?;
-        
+
         // Call get_amount function
         let results = self.execute_function(
             AccountAddress::ZERO,
@@ -204,7 +215,6 @@ impl MoveRuntime {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -218,20 +228,20 @@ mod tests {
     #[test]
     fn test_validate_transfer_without_module() {
         let mut runtime = MoveRuntime::new().unwrap();
-        
+
         let addr1 = AccountAddress::from_hex_literal("0x100").unwrap();
         let addr2 = AccountAddress::from_hex_literal("0x200").unwrap();
-        
+
         // Test with fallback validation (no module loaded)
         let result = runtime.validate_transfer(&addr1, &addr2, 500);
         assert!(result.is_ok());
         assert!(result.unwrap());
-        
+
         // Test with zero amount
         let result = runtime.validate_transfer(&addr1, &addr2, 0);
         assert!(result.is_ok());
         assert!(!result.unwrap());
-        
+
         // Test with same address
         let result = runtime.validate_transfer(&addr1, &addr1, 500);
         assert!(result.is_ok());

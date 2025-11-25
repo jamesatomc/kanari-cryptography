@@ -2,14 +2,12 @@
 //!
 //! The signer module defines operations for the Move `signer` native type.
 
-use anyhow::{Result, Context};
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    language_storage::ModuleId,
-};
-use serde::{Serialize, Deserialize};
 use crate::address::Address;
+use anyhow::{Context, Result};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
+};
+use serde::{Deserialize, Serialize};
 
 /// Signer representation (holds an address)
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -35,8 +33,7 @@ impl SignerRef {
 
     /// Parse to AccountAddress
     pub fn to_account_address(&self) -> Result<AccountAddress> {
-        AccountAddress::from_hex_literal(&self.address)
-            .context("Invalid address format")
+        AccountAddress::from_hex_literal(&self.address).context("Invalid address format")
     }
 }
 
@@ -50,10 +47,10 @@ impl SignerModule {
     pub fn get_module_id() -> Result<ModuleId> {
         let address = AccountAddress::from_hex_literal(Address::STD_ADDRESS)
             .context("Invalid std address")?;
-        
-        let module_name = Identifier::new(Self::MODULE_NAME)
-            .context("Invalid signer module name")?;
-        
+
+        let module_name =
+            Identifier::new(Self::MODULE_NAME).context("Invalid signer module name")?;
+
         Ok(ModuleId::new(address, module_name))
     }
 

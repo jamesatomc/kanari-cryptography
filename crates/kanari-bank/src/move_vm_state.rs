@@ -1,10 +1,10 @@
-use anyhow::{Result, Context};
+use crate::move_runtime::MoveRuntime;
+use anyhow::{Context, Result};
+use kanari_types::transfer::TransferRecord;
 use move_core_types::account_address::AccountAddress;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use serde::{Serialize, Deserialize};
-use crate::move_runtime::MoveRuntime;
-use kanari_types::transfer::TransferRecord;
 
 /// State manager that uses Move VM for execution
 #[derive(Serialize, Deserialize)]
@@ -25,8 +25,7 @@ impl MoveVMState {
 
     pub fn data_file() -> PathBuf {
         // Use .kari/kanari-db in user home directory
-        let home = dirs::home_dir()
-            .unwrap_or_else(|| PathBuf::from("."));
+        let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
         home.join(".kari")
             .join("kanari-db")
             .join("move_vm_data.json")
@@ -34,12 +33,12 @@ impl MoveVMState {
 
     pub fn load() -> Result<Self> {
         let path = Self::data_file();
-        
+
         // Create parent directory if it doesn't exist
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        
+
         if path.exists() {
             let data = std::fs::read_to_string(&path)?;
             let state: MoveVMState = serde_json::from_str(&data)?;
@@ -94,24 +93,33 @@ impl MoveVMState {
 
         // Call Move function to validate transfer
         let is_valid = runtime.validate_transfer(&from, &to, amount)?;
-        
+
         if !is_valid {
             anyhow::bail!("Transfer validation failed: invalid amount or addresses");
         }
 
         // Create transfer record using Move VM (REQUIRED - no fallback)
-        let transfer_bytes = runtime.create_transfer_record(&from, &to, amount)
-            .context("Failed to create transfer record via Move VM - this is required for production")?;
-        
+        let transfer_bytes = runtime.create_transfer_record(&from, &to, amount).context(
+            "Failed to create transfer record via Move VM - this is required for production",
+        )?;
+
         // Verify the transfer amount from Move VM
-        let move_amount = runtime.get_transfer_amount(transfer_bytes)
+        let move_amount = runtime
+            .get_transfer_amount(transfer_bytes)
             .context("Failed to extract amount from Move transfer record")?;
-        
+
         if move_amount != amount {
-            anyhow::bail!("Amount mismatch: expected {}, got {} from Move VM", amount, move_amount);
+            anyhow::bail!(
+                "Amount mismatch: expected {}, got {} from Move VM",
+                amount,
+                move_amount
+            );
         }
-        
-        println!("✓ Move VM validated transfer: {} → {} amount: {}", from, to, move_amount);
+
+        println!(
+            "✓ Move VM validated transfer: {} → {} amount: {}",
+            from, to, move_amount
+        );
 
         // Update local state
         let to_balance = self.get_balance(&to);
@@ -119,7 +127,8 @@ impl MoveVMState {
         self.set_balance(to, to_balance + amount);
 
         // Record transfer
-        self.transfers.push(TransferRecord::from_addresses(from, to, amount));
+        self.transfers
+            .push(TransferRecord::from_addresses(from, to, amount));
 
         Ok(())
     }

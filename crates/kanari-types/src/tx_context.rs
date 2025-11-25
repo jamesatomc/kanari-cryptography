@@ -1,11 +1,9 @@
-use anyhow::{Result, Context};
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    language_storage::ModuleId,
-};
-use serde::{Serialize, Deserialize};
 use crate::address::Address;
+use anyhow::{Context, Result};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
+};
+use serde::{Deserialize, Serialize};
 
 /// Transaction context structure
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -43,13 +41,7 @@ impl TxContextRecord {
         gas_budget: u64,
         gas_price: u64,
     ) -> Self {
-        Self::new(
-            format!("{}", sender),
-            epoch,
-            digest,
-            gas_budget,
-            gas_price,
-        )
+        Self::new(format!("{}", sender), epoch, digest, gas_budget, gas_price)
     }
 
     /// Get sender address
@@ -78,10 +70,10 @@ impl TxContextModule {
     pub fn get_module_id() -> Result<ModuleId> {
         let address = AccountAddress::from_hex_literal(Address::KANARI_SYSTEM_ADDRESS)
             .context("Invalid system address")?;
-        
-        let module_name = Identifier::new(Self::TX_CONTEXT_MODULE)
-            .context("Invalid tx_context module name")?;
-        
+
+        let module_name =
+            Identifier::new(Self::TX_CONTEXT_MODULE).context("Invalid tx_context module name")?;
+
         Ok(ModuleId::new(address, module_name))
     }
 
@@ -108,13 +100,7 @@ mod tests {
 
     #[test]
     fn test_tx_context_creation() {
-        let ctx = TxContextRecord::new(
-            "0x1".to_string(),
-            5,
-            vec![1, 2, 3, 4],
-            1000,
-            100,
-        );
+        let ctx = TxContextRecord::new("0x1".to_string(), 5, vec![1, 2, 3, 4], 1000, 100);
         assert_eq!(ctx.sender(), "0x1");
         assert_eq!(ctx.epoch(), 5);
         assert_eq!(ctx.gas_budget, 1000);
@@ -122,13 +108,7 @@ mod tests {
 
     #[test]
     fn test_total_gas_cost() {
-        let ctx = TxContextRecord::new(
-            "0x1".to_string(),
-            0,
-            vec![],
-            1000,
-            50,
-        );
+        let ctx = TxContextRecord::new("0x1".to_string(), 0, vec![], 1000, 50);
         assert_eq!(ctx.total_gas_cost(), 50_000);
     }
 

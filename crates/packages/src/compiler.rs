@@ -1,12 +1,12 @@
-use anyhow::{Result, Context};
-use move_compiler::{Compiler, Flags};
+use anyhow::{Context, Result};
+use kanari_types::address::Address;
 use move_command_line_common::address::NumericalAddress;
+use move_compiler::{Compiler, Flags};
 use move_symbol_pool::Symbol;
-use serde::{Serialize, Deserialize};
-use std::path::{Path, PathBuf};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
-use kanari_types::address::Address;
+use std::path::{Path, PathBuf};
 
 use crate::packages_config::get_package_configs;
 
@@ -31,14 +31,14 @@ pub struct ModuleData {
 /// Hex serialization for bytecode
 mod hex_serde {
     use serde::{Deserialize, Deserializer, Serializer};
-    
+
     pub fn serialize<S>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         serializer.serialize_str(&hex::encode(bytes))
     }
-    
+
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
     where
         D: Deserializer<'de>,
@@ -49,13 +49,18 @@ mod hex_serde {
 }
 
 /// Compile Move package and create .rpd file
-pub fn compile_package(package_dir: &Path, output_dir: &Path, version: &str, address: &str) -> Result<PathBuf> {
+pub fn compile_package(
+    package_dir: &Path,
+    output_dir: &Path,
+    version: &str,
+    address: &str,
+) -> Result<PathBuf> {
     println!("📦 Compiling: {:?}", package_dir);
-    
+
     // Validate address format first
     NumericalAddress::parse_str(address)
         .map_err(|e| anyhow::anyhow!("Invalid address '{}': {}", address, e))?;
-    
+
     let sources_dir = package_dir.join("sources");
     if !sources_dir.exists() {
         anyhow::bail!("Sources directory not found: {:?}", sources_dir);
@@ -69,15 +74,15 @@ pub fn compile_package(package_dir: &Path, output_dir: &Path, version: &str, add
         load_stdlib_dependencies(package_dir)?
     };
 
-    println!("  Package: {} | Sources: {} | Deps: {}", 
-        package_name, source_files.len(), dependencies.len());
+    println!(
+        "  Package: {} | Sources: {} | Deps: {}",
+        package_name,
+        source_files.len(),
+        dependencies.len()
+    );
 
     // Compile Move sources
-    let compiled_modules = compile_move_source(
-        source_files,
-        dependencies,
-        get_named_addresses(),
-    )?;
+    let compiled_modules = compile_move_source(source_files, dependencies, get_named_addresses())?;
 
     println!("  ✓ Compiled {} modules", compiled_modules.len());
 
@@ -114,7 +119,8 @@ fn compile_move_source(
     named_addresses: BTreeMap<Symbol, NumericalAddress>,
 ) -> Result<Vec<ModuleData>> {
     let to_symbols = |paths: &[PathBuf]| {
-        paths.iter()
+        paths
+            .iter()
             .map(|p| Symbol::from(p.to_string_lossy().as_ref()))
             .collect()
     };
@@ -129,14 +135,16 @@ fn compile_move_source(
     .build_and_report()
     .context("Move compilation failed")?;
 
-    compiled_units.into_iter()
+    compiled_units
+        .into_iter()
         .map(|unit| {
             let module = &unit.into_compiled_unit().module;
             let module_id = module.self_id();
             let mut bytecode = Vec::new();
-            module.serialize(&mut bytecode)
+            module
+                .serialize(&mut bytecode)
                 .context("Failed to serialize module")?;
-            
+
             Ok(ModuleData {
                 name: module_id.name().to_string(),
                 address: format!("{}", module_id.address()),
@@ -182,8 +190,8 @@ fn collect_move_files(dir: &Path) -> Result<Vec<PathBuf>> {
 fn is_stdlib(address: &str) -> Result<bool> {
     let addr = NumericalAddress::parse_str(address)
         .map_err(|e| anyhow::anyhow!("Failed to parse address '{}': {}", address, e))?;
-    let stdlib_addr = NumericalAddress::parse_str(Address::STD_ADDRESS)
-        .expect("Invalid stdlib address constant");
+    let stdlib_addr =
+        NumericalAddress::parse_str(Address::STD_ADDRESS).expect("Invalid stdlib address constant");
     Ok(addr == stdlib_addr)
 }
 
@@ -202,14 +210,9 @@ fn get_named_addresses() -> BTreeMap<Symbol, NumericalAddress> {
     get_package_configs()
         .iter()
         .filter_map(|config| {
-            let name = match config.name {
-                "MoveStdlib" => "std",
-                "KanariSystem" => "kanari_system",
-                _ => config.name,
-            };
             NumericalAddress::parse_str(config.address)
                 .ok()
-                .map(|addr| (Symbol::from(name), addr))
+                .map(|addr| (Symbol::from(config.address_name), addr))
         })
         .collect()
 }
@@ -221,9 +224,10 @@ fn parse_package_name(content: &str) -> Option<String> {
         if line.starts_with("name") {
             if let Some(name_part) = line.split('=').nth(1) {
                 return Some(
-                    name_part.trim()
+                    name_part
+                        .trim()
                         .trim_matches(|c| c == '"' || c == '\'')
-                        .to_string()
+                        .to_string(),
                 );
             }
         }

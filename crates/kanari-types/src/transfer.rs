@@ -1,11 +1,9 @@
-use anyhow::{Result, Context};
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    language_storage::ModuleId,
-};
-use serde::{Serialize, Deserialize};
 use crate::address::Address;
+use anyhow::{Context, Result};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
+};
+use serde::{Deserialize, Serialize};
 
 /// Transfer record structure
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -41,7 +39,11 @@ pub struct TransferValidator;
 
 impl TransferValidator {
     /// Validate transfer with addresses directly
-    pub fn validate_addresses(from: &AccountAddress, to: &AccountAddress, amount: u64) -> Result<bool> {
+    pub fn validate_addresses(
+        from: &AccountAddress,
+        to: &AccountAddress,
+        amount: u64,
+    ) -> Result<bool> {
         Ok(amount > 0 && from != to)
     }
 }
@@ -56,10 +58,10 @@ impl TransferModule {
     pub fn get_module_id() -> Result<ModuleId> {
         let address = AccountAddress::from_hex_literal(Address::KANARI_SYSTEM_ADDRESS)
             .context("Invalid system address")?;
-        
-        let module_name = Identifier::new(Self::TRANSFER_MODULE)
-            .context("Invalid transfer module name")?;
-        
+
+        let module_name =
+            Identifier::new(Self::TRANSFER_MODULE).context("Invalid transfer module name")?;
+
         Ok(ModuleId::new(address, module_name))
     }
 
@@ -90,11 +92,7 @@ mod tests {
 
     #[test]
     fn test_transfer_record_creation() {
-        let record = TransferRecord::new(
-            "0x1".to_string(),
-            "0x2".to_string(),
-            1000,
-        );
+        let record = TransferRecord::new("0x1".to_string(), "0x2".to_string(), 1000);
         assert_eq!(record.from, "0x1");
         assert_eq!(record.to, "0x2");
         assert_eq!(record.amount, 1000);
@@ -105,13 +103,13 @@ mod tests {
     fn test_transfer_validator() {
         let addr1 = AccountAddress::from_hex_literal("0x1").unwrap();
         let addr2 = AccountAddress::from_hex_literal("0x2").unwrap();
-        
+
         // Valid transfer
         assert!(TransferValidator::validate_addresses(&addr1, &addr2, 500).unwrap());
-        
+
         // Invalid: zero amount
         assert!(!TransferValidator::validate_addresses(&addr1, &addr2, 0).unwrap());
-        
+
         // Invalid: same address
         assert!(!TransferValidator::validate_addresses(&addr1, &addr1, 500).unwrap());
     }
@@ -120,7 +118,7 @@ mod tests {
     fn test_get_transfer_module_id() {
         let module_id = TransferModule::get_module_id();
         assert!(module_id.is_ok());
-        
+
         let module_id = module_id.unwrap();
         assert_eq!(module_id.name().as_str(), "transfer");
     }

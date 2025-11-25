@@ -1,11 +1,9 @@
-use anyhow::{Result, Context};
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    language_storage::ModuleId,
-};
-use serde::{Serialize, Deserialize};
 use crate::address::Address;
+use anyhow::{Context, Result};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
+};
+use serde::{Deserialize, Serialize};
 
 /// Balance record structure
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -31,7 +29,9 @@ impl BalanceRecord {
 
     /// Increase balance
     pub fn increase(&mut self, amount: u64) -> Result<()> {
-        self.value = self.value.checked_add(amount)
+        self.value = self
+            .value
+            .checked_add(amount)
             .ok_or_else(|| anyhow::anyhow!("Balance overflow"))?;
         Ok(())
     }
@@ -56,10 +56,10 @@ impl BalanceModule {
     pub fn get_module_id() -> Result<ModuleId> {
         let address = AccountAddress::from_hex_literal(Address::KANARI_SYSTEM_ADDRESS)
             .context("Invalid system address")?;
-        
-        let module_name = Identifier::new(Self::BALANCE_MODULE)
-            .context("Invalid balance module name")?;
-        
+
+        let module_name =
+            Identifier::new(Self::BALANCE_MODULE).context("Invalid balance module name")?;
+
         Ok(ModuleId::new(address, module_name))
     }
 
@@ -105,7 +105,7 @@ mod tests {
         let mut balance = BalanceRecord::new(1000);
         balance.increase(500).unwrap();
         assert_eq!(balance.value, 1500);
-        
+
         balance.decrease(300).unwrap();
         assert_eq!(balance.value, 1200);
     }

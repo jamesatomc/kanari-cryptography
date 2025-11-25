@@ -2,14 +2,12 @@
 //!
 //! The string module defines the String type which represents UTF8 encoded strings.
 
-use anyhow::{Result, Context};
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    language_storage::ModuleId,
-};
-use serde::{Serialize, Deserialize};
 use crate::address::Address;
+use anyhow::{Context, Result};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
+};
+use serde::{Deserialize, Serialize};
 
 /// UTF-8 string structure
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -21,8 +19,7 @@ impl Utf8String {
     /// Create new UTF-8 string from bytes
     pub fn new(bytes: Vec<u8>) -> Result<Self> {
         // Verify valid UTF-8
-        String::from_utf8(bytes.clone())
-            .context("Invalid UTF-8")?;
+        String::from_utf8(bytes.clone()).context("Invalid UTF-8")?;
         Ok(Self { bytes })
     }
 
@@ -35,8 +32,7 @@ impl Utf8String {
 
     /// Convert to Rust String
     pub fn to_string(&self) -> Result<String> {
-        String::from_utf8(self.bytes.clone())
-            .context("Invalid UTF-8 in string")
+        String::from_utf8(self.bytes.clone()).context("Invalid UTF-8 in string")
     }
 
     /// Get length in bytes
@@ -90,10 +86,10 @@ impl StringModule {
     pub fn get_module_id() -> Result<ModuleId> {
         let address = AccountAddress::from_hex_literal(Address::STD_ADDRESS)
             .context("Invalid std address")?;
-        
-        let module_name = Identifier::new(Self::MODULE_NAME)
-            .context("Invalid string module name")?;
-        
+
+        let module_name =
+            Identifier::new(Self::MODULE_NAME).context("Invalid string module name")?;
+
         Ok(ModuleId::new(address, module_name))
     }
 

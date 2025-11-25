@@ -35,6 +35,14 @@ crates/packages/
 Compile all packages to bytecode:
 
 ```bash
+cargo run --release -- build
+```
+
+This creates `released/latest/{address}/package.rpd` files by default.
+
+Or specify a version:
+
+```bash
 cargo run --release -- build --version 1
 ```
 
@@ -110,7 +118,7 @@ const PACKAGES: &[PackageConfig] = &[
 
 4. **Build and generate docs:**
    ```bash
-   cargo run --release -- build --version 1
+   cargo run --release -- build
    cargo run --release -- docs
    ```
 
@@ -147,11 +155,20 @@ Compile all packages to bytecode.
 
 **Usage:**
 ```bash
-cargo run --release -- build --version <VERSION>
+cargo run --release -- build [--version <VERSION>]
 ```
 
 **Options:**
-- `--version <VERSION>`: Release version number (required)
+- `--version <VERSION>`: Release version number (default: "latest")
+
+**Examples:**
+```bash
+# Build latest version
+cargo run --release -- build
+
+# Build specific version
+cargo run --release -- build --version 1
+```
 
 **Output:**
 - Creates `released/{version}/{address}/package.rpd` files
@@ -234,7 +251,13 @@ packages_config.rs
 Build and verify output:
 
 ```bash
-# Compile packages
+# Compile packages (latest version)
+cargo run --release -- build
+
+# Check output
+Get-Content released/latest/0x1/package.rpd | Select-Object -First 20
+
+# Compile specific version
 cargo run --release -- build --version 1
 
 # Check output
