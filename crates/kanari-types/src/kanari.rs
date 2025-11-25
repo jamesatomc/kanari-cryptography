@@ -1,8 +1,91 @@
-pub struct GasModule;
+use anyhow::{Result, Context};
+use move_core_types::{
+    account_address::AccountAddress,
+    identifier::Identifier,
+    language_storage::ModuleId,
+};
 
-impl Gas_Module {
+/// Kanari module constants and utilities
+pub struct KanariModule;
+
+impl KanariModule {
     pub const KANARI_SYSTEM_ADDRESS: &'static str = "0x2";
-    pub const GAS_MODULE: &'static str = "kanari";
+    pub const KANARI_MODULE: &'static str = "kanari";
 
+    /// The amount of Mist per Kanari token (10^-9 of a Kanari token)
+    pub const MIST_PER_KANARI: u64 = 1_000_000_000;
 
+    /// The total supply of Kanari denominated in whole Kanari tokens (10 Billion)
+    pub const TOTAL_SUPPLY_KANARI: u64 = 10_000_000_000;
+
+    /// The total supply of Kanari denominated in Mist (10 Billion * 10^9)
+    pub const TOTAL_SUPPLY_MIST: u64 = 10_000_000_000_000_000_000;
+
+    /// Get the module ID for kanari_system::kanari
+    pub fn get_module_id() -> Result<ModuleId> {
+        let address = AccountAddress::from_hex_literal(Self::KANARI_SYSTEM_ADDRESS)
+            .context("Invalid system address")?;
+        
+        let module_name = Identifier::new(Self::KANARI_MODULE)
+            .context("Invalid kanari module name")?;
+        
+        Ok(ModuleId::new(address, module_name))
+    }
+
+    /// Convert Kanari to Mist
+    pub fn kanari_to_mist(kanari: u64) -> u64 {
+        kanari.saturating_mul(Self::MIST_PER_KANARI)
+    }
+
+    /// Convert Mist to Kanari (rounded down)
+    pub fn mist_to_kanari(mist: u64) -> u64 {
+        mist / Self::MIST_PER_KANARI
+    }
+
+    /// Format amount in Mist as Kanari string
+    pub fn format_kanari(mist: u64) -> String {
+        let kanari = mist / Self::MIST_PER_KANARI;
+        let remaining_mist = mist % Self::MIST_PER_KANARI;
+        if remaining_mist == 0 {
+            format!("{} KANARI", kanari)
+        } else {
+            format!("{}.{:09} KANARI", kanari, remaining_mist)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_constants() {
+        assert_eq!(KanariModule::MIST_PER_KANARI, 1_000_000_000);
+        assert_eq!(KanariModule::TOTAL_SUPPLY_KANARI, 10_000_000_000);
+        assert_eq!(
+            KanariModule::TOTAL_SUPPLY_MIST,
+            KanariModule::TOTAL_SUPPLY_KANARI * KanariModule::MIST_PER_KANARI
+        );
+    }
+
+    #[test]
+    fn test_amount_conversion() {
+        assert_eq!(KanariModule::kanari_to_mist(1), KanariModule::MIST_PER_KANARI);
+        assert_eq!(KanariModule::kanari_to_mist(100), 100 * KanariModule::MIST_PER_KANARI);
+        assert_eq!(KanariModule::mist_to_kanari(KanariModule::MIST_PER_KANARI), 1);
+        assert_eq!(KanariModule::mist_to_kanari(KanariModule::TOTAL_SUPPLY_MIST), KanariModule::TOTAL_SUPPLY_KANARI);
+    }
+
+    #[test]
+    fn test_format_kanari() {
+        assert_eq!(KanariModule::format_kanari(1_000_000_000), "1 KANARI");
+        assert_eq!(KanariModule::format_kanari(1_500_000_000), "1.500000000 KANARI");
+        assert_eq!(KanariModule::format_kanari(1), "0.000000001 KANARI");
+    }
+
+    #[test]
+    fn test_module_id() {
+        let module_id = KanariModule::get_module_id();
+        assert!(module_id.is_ok());
+    }
 }
