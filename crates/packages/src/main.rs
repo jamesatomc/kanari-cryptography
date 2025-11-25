@@ -3,6 +3,7 @@ mod packages_config;
 mod doc_generator;
 
 use anyhow::Result;
+use kanari_types::address::Address;
 use clap::{Parser, Subcommand};
 use std::{env, path::{Path, PathBuf}};
 use packages_config::get_package_configs;
@@ -171,21 +172,23 @@ fn get_doc_configs(packages_dir: &Path) -> Result<Vec<PackageDocConfig>> {
             package_path.to_str().unwrap()
         );
 
-        // Add address mapping
-        let addr_name = match config.name {
-            "MoveStdlib" => "std",
-            "KanariSystem" => "kanari_system",
-            _ => config.name,
-        };
-        doc_config = doc_config.with_address(addr_name, config.address)?;
+        // Add address mapping using config method
+        doc_config = doc_config.with_address(config.address_name, config.address)?;
 
         // Add stdlib dependency for non-stdlib packages
-        if config.address != "0x1" {
+        if !config.is_stdlib() {
             doc_config = doc_config
-                .with_address("std", "0x1")?
-                .with_dependency(
-                    packages_dir.join("move-stdlib/sources").to_string_lossy().to_string()
-                );
+                .with_address("std", Address::STD_ADDRESS)?;
+            
+            // Add dependency paths
+            for dep in config.get_dependencies() {
+                let dep_path = packages_dir.join(format!("{}/sources", dep));
+                if dep_path.exists() {
+                    doc_config = doc_config.with_dependency(
+                        dep_path.to_string_lossy().to_string()
+                    );
+                }
+            }
         }
 
         doc_configs.push(doc_config);

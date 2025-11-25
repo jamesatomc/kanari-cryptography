@@ -4,12 +4,12 @@ use move_core_types::{
     identifier::Identifier,
     language_storage::ModuleId,
 };
+use crate::address::Address;
 
 /// Kanari module constants and utilities
 pub struct KanariModule;
 
 impl KanariModule {
-    pub const KANARI_SYSTEM_ADDRESS: &'static str = "0x2";
     pub const KANARI_MODULE: &'static str = "kanari";
 
     /// The amount of Mist per Kanari token (10^-9 of a Kanari token)
@@ -23,7 +23,7 @@ impl KanariModule {
 
     /// Get the module ID for kanari_system::kanari
     pub fn get_module_id() -> Result<ModuleId> {
-        let address = AccountAddress::from_hex_literal(Self::KANARI_SYSTEM_ADDRESS)
+        let address = AccountAddress::from_hex_literal(Address::KANARI_SYSTEM_ADDRESS)
             .context("Invalid system address")?;
         
         let module_name = Identifier::new(Self::KANARI_MODULE)

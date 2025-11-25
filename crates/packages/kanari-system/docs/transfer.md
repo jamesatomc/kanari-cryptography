@@ -15,6 +15,7 @@ Uses proper address types with validation
 -  [Function `get_to`](#0x2_transfer_get_to)
 -  [Function `total_amount`](#0x2_transfer_total_amount)
 -  [Function `is_valid_amount`](#0x2_transfer_is_valid_amount)
+-  [Function `public_freeze_object`](#0x2_transfer_public_freeze_object)
 
 
 <pre><code></code></pre>
@@ -239,6 +240,33 @@ Check if amount is valid (non-zero)
 
 <pre><code><b>public</b> <b>fun</b> <a href="transfer.md#0x2_transfer_is_valid_amount">is_valid_amount</a>(amount: u64): bool {
     amount &gt; 0
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x2_transfer_public_freeze_object"></a>
+
+## Function `public_freeze_object`
+
+Minimal helper to 'freeze' a metadata object returned by currency creation.
+This implementation is a no-op placeholder that consumes the object.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="transfer.md#0x2_transfer_public_freeze_object">public_freeze_object</a>&lt;T: drop&gt;(_obj: T)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="transfer.md#0x2_transfer_public_freeze_object">public_freeze_object</a>&lt;T: drop&gt;(_obj: T) {
+    // In a full implementation this would mark the metadata <b>as</b> immutable
+    // or store it in a <b>global</b> registry. Here we simply accept the object.
 }
 </code></pre>
 

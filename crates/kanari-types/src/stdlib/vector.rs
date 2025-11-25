@@ -8,12 +8,12 @@ use move_core_types::{
     identifier::Identifier,
     language_storage::ModuleId,
 };
+use crate::address::Address;
 
 /// Vector module constants and utilities
 pub struct VectorModule;
 
 impl VectorModule {
-    pub const STD_ADDRESS: &'static str = "0x1";
     pub const MODULE_NAME: &'static str = "vector";
 
     /// Error: index out of bounds
@@ -21,7 +21,7 @@ impl VectorModule {
 
     /// Get the module ID for std::vector
     pub fn get_module_id() -> Result<ModuleId> {
-        let address = AccountAddress::from_hex_literal(Self::STD_ADDRESS)
+        let address = AccountAddress::from_hex_literal(Address::STD_ADDRESS)
             .context("Invalid std address")?;
         
         let module_name = Identifier::new(Self::MODULE_NAME)

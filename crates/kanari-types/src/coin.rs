@@ -5,6 +5,7 @@ use move_core_types::{
     language_storage::ModuleId,
 };
 use serde::{Serialize, Deserialize};
+use crate::address::Address;
 
 /// Coin record structure
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -82,12 +83,11 @@ impl SupplyRecord {
 pub struct CoinModule;
 
 impl CoinModule {
-    pub const KANARI_SYSTEM_ADDRESS: &'static str = "0x2";
     pub const COIN_MODULE: &'static str = "coin";
 
     /// Get the module ID for kanari_system::coin
     pub fn get_module_id() -> Result<ModuleId> {
-        let address = AccountAddress::from_hex_literal(Self::KANARI_SYSTEM_ADDRESS)
+        let address = AccountAddress::from_hex_literal(Address::KANARI_SYSTEM_ADDRESS)
             .context("Invalid system address")?;
         
         let module_name = Identifier::new(Self::COIN_MODULE)

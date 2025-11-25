@@ -31,7 +31,12 @@ The Kanari System is built on top of the Move programming language, providing a 
 ## Index
 
 
+-  [`0x2::balance`](balance.md#0x2_balance)
+-  [`0x2::coin`](coin.md#0x2_coin)
+-  [`0x2::kanari`](kanari.md#0x2_kanari)
 -  [`0x2::transfer`](transfer.md#0x2_transfer)
+-  [`0x2::tx_context`](tx_context.md#0x2_tx_context)
+-  [`0x2::url`](url.md#0x2_url)
 
 
 

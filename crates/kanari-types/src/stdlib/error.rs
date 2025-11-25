@@ -8,12 +8,12 @@ use move_core_types::{
     identifier::Identifier,
     language_storage::ModuleId,
 };
+use crate::address::Address;
 
 /// Error module constants and utilities
 pub struct ErrorModule;
 
 impl ErrorModule {
-    pub const STD_ADDRESS: &'static str = "0x1";
     pub const MODULE_NAME: &'static str = "error";
 
     // Error categories
@@ -33,7 +33,7 @@ impl ErrorModule {
 
     /// Get the module ID for std::error
     pub fn get_module_id() -> Result<ModuleId> {
-        let address = AccountAddress::from_hex_literal(Self::STD_ADDRESS)
+        let address = AccountAddress::from_hex_literal(Address::STD_ADDRESS)
             .context("Invalid std address")?;
         
         let module_name = Identifier::new(Self::MODULE_NAME)

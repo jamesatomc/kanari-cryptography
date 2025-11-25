@@ -35,6 +35,12 @@ impl Address {
     /// The number of bytes in an address
     pub const LENGTH: usize = 32;
 
+    /// Move Standard Library address (0x1)
+    pub const STD_ADDRESS: &'static str = "0x1";
+    
+    /// Kanari System address (0x2)
+    pub const KANARI_SYSTEM_ADDRESS: &'static str = "0x2";
+
     /// Creates a new Address from raw bytes
     pub const fn new(bytes: [u8; Self::LENGTH]) -> Self {
         Address(bytes)

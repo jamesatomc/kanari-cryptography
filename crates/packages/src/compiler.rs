@@ -6,6 +6,7 @@ use serde::{Serialize, Deserialize};
 use std::path::{Path, PathBuf};
 use std::collections::BTreeMap;
 use std::fs;
+use kanari_types::address::Address;
 
 use crate::packages_config::get_package_configs;
 
@@ -181,8 +182,8 @@ fn collect_move_files(dir: &Path) -> Result<Vec<PathBuf>> {
 fn is_stdlib(address: &str) -> Result<bool> {
     let addr = NumericalAddress::parse_str(address)
         .map_err(|e| anyhow::anyhow!("Failed to parse address '{}': {}", address, e))?;
-    let stdlib_addr = NumericalAddress::parse_str("0x1")
-        .expect("Invalid hardcoded stdlib address");
+    let stdlib_addr = NumericalAddress::parse_str(Address::STD_ADDRESS)
+        .expect("Invalid stdlib address constant");
     Ok(addr == stdlib_addr)
 }
 

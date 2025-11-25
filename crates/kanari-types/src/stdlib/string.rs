@@ -9,6 +9,7 @@ use move_core_types::{
     language_storage::ModuleId,
 };
 use serde::{Serialize, Deserialize};
+use crate::address::Address;
 
 /// UTF-8 string structure
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -78,7 +79,6 @@ impl From<&str> for Utf8String {
 pub struct StringModule;
 
 impl StringModule {
-    pub const STD_ADDRESS: &'static str = "0x1";
     pub const MODULE_NAME: &'static str = "string";
 
     /// Error: invalid UTF-8 encoding
@@ -88,7 +88,7 @@ impl StringModule {
 
     /// Get the module ID for std::string
     pub fn get_module_id() -> Result<ModuleId> {
-        let address = AccountAddress::from_hex_literal(Self::STD_ADDRESS)
+        let address = AccountAddress::from_hex_literal(Address::STD_ADDRESS)
             .context("Invalid std address")?;
         
         let module_name = Identifier::new(Self::MODULE_NAME)

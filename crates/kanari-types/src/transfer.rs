@@ -5,6 +5,7 @@ use move_core_types::{
     language_storage::ModuleId,
 };
 use serde::{Serialize, Deserialize};
+use crate::address::Address;
 
 /// Transfer record structure
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -49,12 +50,11 @@ impl TransferValidator {
 pub struct TransferModule;
 
 impl TransferModule {
-    pub const KANARI_SYSTEM_ADDRESS: &'static str = "0x2";
     pub const TRANSFER_MODULE: &'static str = "transfer";
 
     /// Get the module ID for system::transfer
     pub fn get_module_id() -> Result<ModuleId> {
-        let address = AccountAddress::from_hex_literal(Self::KANARI_SYSTEM_ADDRESS)
+        let address = AccountAddress::from_hex_literal(Address::KANARI_SYSTEM_ADDRESS)
             .context("Invalid system address")?;
         
         let module_name = Identifier::new(Self::TRANSFER_MODULE)

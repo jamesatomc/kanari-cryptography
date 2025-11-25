@@ -9,6 +9,7 @@ use move_core_types::{
     language_storage::ModuleId,
 };
 use serde::{Serialize, Deserialize};
+use crate::address::Address;
 
 /// Option value representation
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -82,7 +83,6 @@ impl<T> From<OptionValue<T>> for Option<T> {
 pub struct OptionModule;
 
 impl OptionModule {
-    pub const STD_ADDRESS: &'static str = "0x1";
     pub const MODULE_NAME: &'static str = "option";
 
     /// Error: Option is set when it should be None
@@ -92,7 +92,7 @@ impl OptionModule {
 
     /// Get the module ID for std::option
     pub fn get_module_id() -> Result<ModuleId> {
-        let address = AccountAddress::from_hex_literal(Self::STD_ADDRESS)
+        let address = AccountAddress::from_hex_literal(Address::STD_ADDRESS)
             .context("Invalid std address")?;
         
         let module_name = Identifier::new(Self::MODULE_NAME)
