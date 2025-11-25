@@ -66,9 +66,9 @@ enum Commands {
     },
     /// Mint new coins to a wallet
     Mint {
-        /// Amount to mint
+        /// Amount to mint in KANARI (e.g., 1.5 for 1.5 KANARI)
         #[arg(short, long)]
-        amount: u64,
+        amount: f64,
         /// Recipient wallet address
         #[arg(short, long)]
         recipient: String,
@@ -81,9 +81,9 @@ enum Commands {
         /// Recipient address
         #[arg(short, long)]
         to: String,
-        /// Amount to transfer
+        /// Amount to transfer in KANARI (e.g., 0.5 for 0.5 KANARI)
         #[arg(short, long)]
-        amount: u64,
+        amount: f64,
         /// Wallet password
         #[arg(short, long)]
         password: String,
@@ -109,6 +109,15 @@ enum Commands {
         #[arg(short, long)]
         confirm: bool,
     },
+}
+
+/// Convert KANARI amount to MIST
+fn kanari_to_mist(kanari: f64) -> Result<u64> {
+    if kanari < 0.0 {
+        anyhow::bail!("Amount cannot be negative");
+    }
+    let mist = (kanari * 1_000_000_000.0).round() as u64;
+    Ok(mist)
 }
 
 /// Parse address from hex string
@@ -220,8 +229,8 @@ fn main() -> Result<()> {
 
                     // Check balance
                     let addr = parse_address(&wallet.address.to_hex())?;
-                    let balance = state.get_balance(&addr);
-                    println!("  Balance: {} coins", balance);
+                    let balance = state.get_balance_formatted(&addr);
+                    println!("  Balance: {}", balance);
                 }
                 Err(e) => {
                     println!("❌ Failed to load wallet: {}", e);
@@ -236,15 +245,15 @@ fn main() -> Result<()> {
                         println!("No wallets found.");
                     } else {
                         println!("Available Wallets:");
-                        println!("{:<66} {:>15}", "Address", "Balance");
-                        println!("{}", "=".repeat(82));
+                        println!("{:<66} {:>20}", "Address", "Balance");
+                        println!("{}", "=".repeat(87));
                         for (wallet_addr, _is_selected) in wallets {
                             // Try to get balance
                             if let Ok(addr) = parse_address(&wallet_addr) {
-                                let balance = state.get_balance(&addr);
-                                println!("{:<66} {:>15}", wallet_addr, balance);
+                                let balance = state.get_balance_formatted(&addr);
+                                println!("{:<66} {:>20}", wallet_addr, balance);
                             } else {
-                                println!("{:<66} {:>15}", wallet_addr, "N/A");
+                                println!("{:<66} {:>20}", wallet_addr, "N/A");
                             }
                         }
                     }
@@ -270,8 +279,8 @@ fn main() -> Result<()> {
 
                     // Check balance
                     let addr = parse_address(&wallet.address.to_hex())?;
-                    let balance = state.get_balance(&addr);
-                    println!("💰 Balance: {} coins", balance);
+                    let balance = state.get_balance_formatted(&addr);
+                    println!("💰 Balance: {}", balance);
 
                     if show_secrets {
                         println!("\n⚠️  SENSITIVE INFORMATION (NEVER SHARE!)");
@@ -305,6 +314,9 @@ fn main() -> Result<()> {
             let from_addr = parse_address(&wallet.address.to_hex())?;
             let to_addr = parse_address(&to)?;
 
+            // Convert KANARI to MIST
+            let amount_mist = kanari_to_mist(amount)?;
+
             // Create transaction message
             let tx_message = format!("transfer:{}:{}:{}", from, to, amount);
 
@@ -317,27 +329,31 @@ fn main() -> Result<()> {
             println!("  Signature: {}", hex::encode(&signature));
 
             // Perform transfer via Move VM
-            state.transfer(&mut runtime, from_addr, to_addr, amount)?;
+            state.transfer(&mut runtime, from_addr, to_addr, amount_mist)?;
             state.save()?;
 
             println!("✓ Signed transfer completed");
             println!(
                 "  From: {} (balance: {})",
                 from,
-                state.get_balance(&from_addr)
+                state.get_balance_formatted(&from_addr)
             );
-            println!("  To: {} (balance: {})", to, state.get_balance(&to_addr));
-            println!("  Amount: {}", amount);
+            println!("  To: {} (balance: {})", to, state.get_balance_formatted(&to_addr));
+            println!("  Amount: {} KANARI ({} MIST)", amount, amount_mist);
         }
 
         Commands::Mint { amount, recipient } => {
             let addr = parse_address(&recipient)?;
-            state.create_account(addr).ok();
-            let current_balance = state.get_balance(&addr);
-            state.set_balance(addr, current_balance + amount);
+            // Convert KANARI to MIST
+            let amount_mist = kanari_to_mist(amount)?;
+            
+            // Use Move Balance mint operation
+            state.mint(addr, amount_mist)?;
             state.save()?;
-            println!("✓ Minted {} coins to {}", amount, recipient);
-            println!("  New balance: {}", state.get_balance(&addr));
+            
+            println!("✓ Minted {} KANARI ({} MIST) to {}", amount, amount_mist, recipient);
+            println!("  New balance: {}", state.get_balance_formatted(&addr));
+            println!("  Total supply: {}", state.get_total_supply_formatted());
         }
 
         Commands::Reset { confirm } => {
