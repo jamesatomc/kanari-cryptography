@@ -62,15 +62,7 @@ enum Commands {
         #[arg(long, default_value = "false")]
         show_secrets: bool,
     },
-    /// Mint new coins to a wallet
-    Mint {
-        /// Amount to mint in KANARI (e.g., 1.5 for 1.5 KANARI)
-        #[arg(short, long)]
-        amount: f64,
-        /// Recipient wallet address
-        #[arg(short, long)]
-        recipient: String,
-    },
+    
     /// Signed transfer with wallet authentication
     SignedTransfer {
         /// Sender wallet address
@@ -360,22 +352,7 @@ fn main() -> Result<()> {
             println!("  Amount: {} KANARI ({} MIST)", amount, amount_mist);
         }
 
-        Commands::Mint { amount, recipient } => {
-            let addr = parse_address(&recipient)?;
-            // Convert KANARI to MIST
-            let amount_mist = kanari_to_mist(amount)?;
-
-            // Use Move Balance mint operation
-            state.mint(addr, amount_mist)?;
-            state.save()?;
-
-            println!(
-                "✓ Minted {} KANARI ({} MIST) to {}",
-                amount, amount_mist, recipient
-            );
-            println!("  New balance: {}", state.get_balance_formatted(&addr));
-            println!("  Total supply: {}", state.get_total_supply_formatted());
-        }
+        
 
         Commands::Reset { confirm } => {
             if !confirm {
