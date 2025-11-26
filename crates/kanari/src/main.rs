@@ -62,7 +62,7 @@ enum Commands {
         #[arg(long, default_value = "false")]
         show_secrets: bool,
     },
-    
+
     /// Signed transfer with wallet authentication
     SignedTransfer {
         /// Sender wallet address
@@ -135,40 +135,6 @@ fn main() -> Result<()> {
 
     let mut state = MoveVMState::load()?;
     let mut runtime = MoveRuntime::new()?;
-
-    // First-run genesis bootstrap: if total supply is zero, seed developer account
-    if state.get_total_supply() == 0 {
-        match genesis::dev_account_address() {
-            Ok(dev_addr) => {
-                let total = KanariModule::TOTAL_SUPPLY_MIST;
-                println!("Genesis: calling Move initializer and minting {} MIST to {}", total, dev_addr);
-
-                // Call Move runtime genesis initializer (for on-chain/module auditability)
-                if let Err(e) = runtime.initialize_genesis(&dev_addr) {
-                    println!("Warning: Move genesis initializer failed: {}", e);
-                } else {
-                    println!("✓ Move genesis initializer executed")
-                }
-
-                // Update persistent MoveVMState so balances/total_supply reflect genesis
-                state.mint(dev_addr, total)?;
-                state.save()?;
-                println!("✓ Genesis completed: total supply set (local state updated)")
-            }
-            Err(e) => {
-                println!("Failed to parse dev address for genesis: {}", e);
-            }
-        }
-    }
-
-    // Auto-load Move module for CLI mode
-    let default_module_path =
-        "crates//packages/kanari-system/build/KanariSystem/bytecode_modules/transfer.mv";
-    if std::path::Path::new(default_module_path).exists() {
-        if let Ok(module_bytes) = fs::read(default_module_path) {
-            let _ = runtime.load_module(module_bytes);
-        }
-    }
 
     match cli.command {
         Commands::CreateWallet {
@@ -360,8 +326,6 @@ fn main() -> Result<()> {
             );
             println!("  Amount: {} KANARI ({} MIST)", amount, amount_mist);
         }
-
-        
 
         Commands::Reset { confirm } => {
             if !confirm {

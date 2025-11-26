@@ -47,6 +47,7 @@ cargo run --release -- build --version 1
 ```
 
 This creates `released/1/{address}/package.rpd` files containing:
+
 - Package metadata (name, version)
 - Compiled modules with hex-encoded bytecode
 - Module names and addresses
@@ -89,6 +90,7 @@ const PACKAGES: &[PackageConfig] = &[
 ### Adding a New Package
 
 1. **Create package directory structure:**
+
    ```
    packages/
    └── your-package/
@@ -101,6 +103,7 @@ const PACKAGES: &[PackageConfig] = &[
    ```
 
 2. **Add to configuration** in `src/packages_config.rs`:
+
    ```rust
    PackageConfig {
        name: "YourPackage",
@@ -110,6 +113,7 @@ const PACKAGES: &[PackageConfig] = &[
    ```
 
 3. **Add documentation config** in `src/main.rs`:
+
    ```rust
    PackageDocConfig::new("your-package")
        .with_address("YourPackage", "0x3")
@@ -117,6 +121,7 @@ const PACKAGES: &[PackageConfig] = &[
    ```
 
 4. **Build and generate docs:**
+
    ```bash
    cargo run --release -- build
    cargo run --release -- docs
@@ -154,14 +159,17 @@ const PACKAGES: &[PackageConfig] = &[
 Compile all packages to bytecode.
 
 **Usage:**
+
 ```bash
 cargo run --release -- build [--version <VERSION>]
 ```
 
 **Options:**
+
 - `--version <VERSION>`: Release version number (default: "latest")
 
 **Examples:**
+
 ```bash
 # Build latest version
 cargo run --release -- build
@@ -171,6 +179,7 @@ cargo run --release -- build --version 1
 ```
 
 **Output:**
+
 - Creates `released/{version}/{address}/package.rpd` files
 - JSON format with hex-encoded bytecode
 - Human-readable and version-controllable
@@ -180,14 +189,17 @@ cargo run --release -- build --version 1
 Generate documentation from Move source code.
 
 **Usage:**
+
 ```bash
 cargo run --release -- docs [OPTIONS]
 ```
 
 **Options:**
+
 - `--package <NAME>`: Generate docs for specific package only
 
 **Output:**
+
 - Markdown files in `{package}/docs/` directory
 - Includes module documentation, function signatures, and constants
 - Auto-generated from Move doc comments
@@ -197,18 +209,23 @@ cargo run --release -- docs [OPTIONS]
 The codebase includes helper functions to reduce complexity:
 
 ### `get_package_name(path: &Path) -> Result<String>`
+
 Extract package name from Move.toml file.
 
 ### `collect_move_files(dir: &Path) -> Vec<PathBuf>`
+
 Recursively collect all .move files in a directory.
 
 ### `is_stdlib(config: &PackageConfig) -> bool`
+
 Check if package is the Move Standard Library.
 
 ### `load_stdlib_dependencies(root: &Path) -> Result<Vec<String>>`
+
 Load standard library Move files as dependencies.
 
 ### `get_named_addresses(config: &PackageConfig) -> BTreeMap<String, AccountAddress>`
+
 Parse named addresses for a package.
 
 ## Dependencies
