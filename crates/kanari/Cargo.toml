@@ -1,5 +1,5 @@
 [package]
-name = "kanari-bank"
+name = "kanari"
 version = "0.1.0"
 edition = "2021"
 
@@ -39,6 +39,7 @@ clap = { version = "4.5", features = ["derive"] }
 # Local dependencies
 kanari-crypto = { path = "../kanari-crypto" }
 kanari-types = { path = "../kanari-types" }
+kanari-move-runtime = { path = "../kanari-move-runtime" }
 
 # Move dependencies
 move-core-types = { workspace = true }
@@ -56,5 +57,5 @@ default = []
 api = ["axum", "tower"]
 
 [[bin]]
-name = "kanari-bank"
+name = "kanari"
 path = "src/main.rs"

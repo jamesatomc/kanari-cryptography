@@ -1,6 +1,6 @@
 # Kanari Bank - Wallet Integration Guide
 
-การผสาน `kanari-crypto` เข้ากับระบบโอนเงินใน `kanari-bank` เรียบร้อยแล้ว! ตอนนี้คุณสามารถใช้ระบบกระเป๋าเงินที่มีความปลอดภัยสูงพร้อมลายเซ็นดิจิทัล
+การผสาน `kanari-crypto` เข้ากับระบบโอนเงินใน `kanari` เรียบร้อยแล้ว! ตอนนี้คุณสามารถใช้ระบบกระเป๋าเงินที่มีความปลอดภัยสูงพร้อมลายเซ็นดิจิทัล
 
 ## 🔑 ฟีเจอร์ใหม่
 
@@ -9,7 +9,7 @@
 สร้างกระเป๋าเงินพร้อม mnemonic phrase และเข้ารหัสด้วย password
 
 ```bash
-cargo run --bin kanari-bank -- create-wallet --password "your-secure-password" --curve ed25519
+cargo run --bin kanari -- create-wallet --password "your-secure-password" --curve ed25519
 ```
 
 **Curve Types ที่รองรับ:**
@@ -38,7 +38,7 @@ cargo run --bin kanari-bank -- create-wallet --password "your-secure-password" -
 เปิดกระเป๋าเงินที่มีอยู่แล้วด้วย address และ password
 
 ```bash
-cargo run --bin kanari-bank -- load-wallet --address "0x1234..." --password "your-password"
+cargo run --bin kanari -- load-wallet --address "0x1234..." --password "your-password"
 ```
 
 **ผลลัพธ์:**
@@ -55,7 +55,7 @@ cargo run --bin kanari-bank -- load-wallet --address "0x1234..." --password "you
 แสดงกระเป๋าเงินทั้งหมดพร้อมยอดเงิน
 
 ```bash
-cargo run --bin kanari-bank -- list-wallets
+cargo run --bin kanari -- list-wallets
 ```
 
 **ผลลัพธ์:**
@@ -73,7 +73,7 @@ Address                                                          Balance
 โอนเงินพร้อมยืนยันตัวตนด้วยลายเซ็นดิจิทัล
 
 ```bash
-cargo run --bin kanari-bank -- signed-transfer \
+cargo run --bin kanari -- signed-transfer \
   --from "0x1234..." \
   --to "0xabcd..." \
   --amount 100 \
@@ -98,10 +98,10 @@ cargo run --bin kanari-bank -- signed-transfer \
 
 ```bash
 # กระเป๋าที่ 1 (Alice)
-cargo run --bin kanari-bank -- create-wallet --password "alice123" --curve ed25519
+cargo run --bin kanari -- create-wallet --password "alice123" --curve ed25519
 
 # กระเป๋าที่ 2 (Bob)
-cargo run --bin kanari-bank -- create-wallet --password "bob456" --curve ed25519
+cargo run --bin kanari -- create-wallet --password "bob456" --curve ed25519
 ```
 
 **บันทึก address และ mnemonic phrase ของทั้งสองกระเป๋า!**
@@ -109,13 +109,13 @@ cargo run --bin kanari-bank -- create-wallet --password "bob456" --curve ed25519
 ### Step 2: เติมเงินเข้ากระเป๋า
 
 ```bash
-cargo run --bin kanari-bank -- mint --amount 1000 --recipient "0x<alice-address>"
+cargo run --bin kanari -- mint --amount 1000 --recipient "0x<alice-address>"
 ```
 
 ### Step 3: โอนเงินแบบมีลายเซ็น
 
 ```bash
-cargo run --bin kanari-bank -- signed-transfer \
+cargo run --bin kanari -- signed-transfer \
   --from "0x<alice-address>" \
   --to "0x<bob-address>" \
   --amount 100 \
@@ -126,10 +126,10 @@ cargo run --bin kanari-bank -- signed-transfer \
 
 ```bash
 # ดูยอดเงินทั้งหมด
-cargo run --bin kanari-bank -- list-wallets
+cargo run --bin kanari -- list-wallets
 
 # หรือดูกระเป๋าเฉพาะ
-cargo run --bin kanari-bank -- balance --address "0x<alice-address>"
+cargo run --bin kanari -- balance --address "0x<alice-address>"
 ```
 
 ## 🔒 ความปลอดภัย
@@ -200,13 +200,13 @@ cargo run --bin kanari-bank -- create-wallet \
 
 ```bash
 # สร้าง account แบบเดิม (ไม่มี wallet)
-cargo run --bin kanari-bank -- create-account --address "0x1234..."
+cargo run --bin kanari -- create-account --address "0x1234..."
 
 # โอนเงินแบบเดิม (ไม่ต้องใส่ password)
-cargo run --bin kanari-bank -- transfer --from "0x1234..." --to "0xabcd..." --amount 100
+cargo run --bin kanari -- transfer --from "0x1234..." --to "0xabcd..." --amount 100
 
 # Mint เงิน
-cargo run --bin kanari-bank -- mint --amount 1000 --recipient "0x1234..."
+cargo run --bin kanari -- mint --amount 1000 --recipient "0x1234..."
 ```
 
 ## 🚀 สิ่งที่พัฒนาเพิ่มเติมได้
@@ -221,7 +221,7 @@ cargo run --bin kanari-bank -- mint --amount 1000 --recipient "0x1234..."
 
 - [POST_QUANTUM_GUIDE.md](crates/kanari-crypto/POST_QUANTUM_GUIDE.md) - คู่มือ Post-Quantum Cryptography
 - [SECURITY_ENHANCEMENTS.md](crates/kanari-crypto/SECURITY_ENHANCEMENTS.md) - ฟีเจอร์ความปลอดภัย
-- [MOVE_VM_USAGE.md](crates/kanari-bank/MOVE_VM_USAGE.md) - การใช้งาน Move VM
+- [MOVE_VM_USAGE.md](crates/kanari/MOVE_VM_USAGE.md) - การใช้งาน Move VM
 
 ---
 

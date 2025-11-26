@@ -47,7 +47,7 @@ let addr = SystemModules::system_address()?;
 let custom_id = SystemModules::get_module_id("0x3", "my_module")?;
 ```
 
-### 3. Move Runtime (`crates/kanari-bank/src/move_runtime.rs`)
+### 3. Move Runtime (`crates/kanari/src/move_runtime.rs`)
 
 Wrapper สำหรับ Move VM:
 
@@ -118,8 +118,8 @@ let amount = runtime.get_transfer_amount(transfer_bytes)?;
 ### สร้างและ validate transfer
 
 ```rust
-use kanari_bank::move_runtime::MoveRuntime;
-use kanari_bank::move_vm_state::MoveVMState;
+use kanari::move_runtime::MoveRuntime;
+use kanari::move_vm_state::MoveVMState;
 
 // สร้าง runtime และ state
 let mut runtime = MoveRuntime::new()?;
@@ -154,23 +154,24 @@ state.transfer(
 
 ```bash
 # Compile Move package
-cargo run --package kanari-bank -- compile-move
+cargo run --package kanari -- compile-move
 
 # Initialize Move VM
-cargo run --package kanari-bank -- init-move
+cargo run --package kanari -- init-move
 
 # Transfer (จะใช้ Move VM ถ้ามี modules โหลดแล้ว)
-cargo run --package kanari-bank -- transfer <from> <to> <amount>
+cargo run --package kanari -- transfer <from> <to> <amount>
 ```
 
 ## การทดสอบ
 
 ```bash
+
 # รัน tests ทั้งหมด
-cargo test --package kanari-bank
+cargo test --package kanari
 
 # รัน Move VM tests
-cargo test --package kanari-bank move_runtime
+cargo test --package kanari move_runtime
 
 # รัน tests ของ Move modules
 cd crates/packages/system

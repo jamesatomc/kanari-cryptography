@@ -16,11 +16,7 @@ pub struct TransferRecord {
 impl TransferRecord {
     /// Create a new transfer record
     pub fn new(from: String, to: String, amount: u64) -> Self {
-        Self {
-            from,
-            to,
-            amount,
-        }
+        Self { from, to, amount }
     }
 
     /// Create transfer record from AccountAddress

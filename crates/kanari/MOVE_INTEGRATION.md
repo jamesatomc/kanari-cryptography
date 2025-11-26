@@ -19,7 +19,7 @@ kanari-system/
 ### 2. Rust Integration Layer
 
 ```
-kanari-bank/
+kanari/
 ├── move_vm_state.rs  - State management ด้วย Move Balance
 ├── move_runtime.rs   - Move VM execution
 └── main.rs           - CLI interface
@@ -43,6 +43,7 @@ kanari-bank/
 ### ✅ Move VM Validation
 
 ทุกการ transfer ผ่าน Move VM:
+
 1. ตรวจสอบ amount ว่าถูกต้อง (> 0)
 2. ตรวจสอบ from ≠ to
 3. สร้าง TransferRecord ผ่าน Move
@@ -55,13 +56,14 @@ kanari-bank/
 
 ```bash
 # Mint 5 KANARI
-kanari-bank mint -a 5.0 -r <address>
+kanari mint -a 5.0 -r <address>
 
 # Mint 0.5 KANARI
-kanari-bank mint -a 0.5 -r <address>
+kanari mint -a 0.5 -r <address>
 ```
 
 **Move Operations:**
+
 - สร้าง `BalanceRecord::new(amount_mist)`
 - เรียก `balance.increase(amount)`
 - บันทึก total_supply
@@ -70,7 +72,7 @@ kanari-bank mint -a 0.5 -r <address>
 
 ```bash
 # Transfer 1.5 KANARI
-kanari-bank signed-transfer \
+kanari signed-transfer \
   -f <from_address> \
   -t <to_address> \
   -a 1.5 \
@@ -78,6 +80,7 @@ kanari-bank signed-transfer \
 ```
 
 **Move Operations:**
+
 1. `runtime.validate_transfer()` - ตรวจสอบด้วย Move
 2. `runtime.create_transfer_record()` - สร้าง record ด้วย Move
 3. `from_balance.decrease(amount)` - ลดยอดผู้ส่ง
@@ -86,7 +89,7 @@ kanari-bank signed-transfer \
 ### 3. List Wallets
 
 ```bash
-kanari-bank list-wallets
+kanari list-wallets
 ```
 
 แสดงยอด balance ทุก wallet เป็น KANARI
@@ -94,7 +97,7 @@ kanari-bank list-wallets
 ### 4. Wallet Info
 
 ```bash
-kanari-bank wallet-info \
+kanari wallet-info \
   -a <address> \
   -p <password> \
   --show-secrets
@@ -142,20 +145,24 @@ pub struct MoveVMState {
 ## ข้อดีของการใช้ Move
 
 ### 1. **Type Safety**
+
 - Balance เป็น type แยก ไม่ใช่แค่ u64
 - Generic type `Balance<T>` รองรับหลาย token type
 
 ### 2. **Safety Guarantees**
+
 - ป้องกัน overflow/underflow อัตโนมัติ
 - ตรวจสอบ balance เพียงพอก่อน transfer
 - ไม่สามารถสร้าง balance ติดลบได้
 
 ### 3. **Move VM Validation**
+
 - ทุก transaction validated ด้วย Move
 - ป้องกันการโอนไปที่อยู่เดียวกัน
 - ตรวจสอบ amount > 0
 
 ### 4. **Scalability**
+
 - สามารถเพิ่ม token type ใหม่ได้ง่าย
 - รองรับ multi-token system
 - Compatible กับ Sui/Aptos ecosystem
@@ -164,21 +171,22 @@ pub struct MoveVMState {
 
 ```bash
 # 1. Reset data
-kanari-bank reset --confirm
+kanari reset --confirm
 
 # 2. Mint coins
-kanari-bank mint -a 10.0 -r 0x...
+kanari mint -a 10.0 -r 0x...
 
 # 3. List balances
-kanari-bank list-wallets
+kanari list-wallets
 
 # 4. Transfer
-kanari-bank signed-transfer -f 0x... -t 0x... -a 2.5 -p password
+kanari signed-transfer -f 0x... -t 0x... -a 2.5 -p password
 ```
 
 ## Best Practices
 
 ### 1. ใช้ Move Balance Operations
+
 ```rust
 // ✅ Good - ใช้ Move Balance
 balance.increase(amount)?;
@@ -189,6 +197,7 @@ balance.value += amount;
 ```
 
 ### 2. ตรวจสอบผ่าน Move VM
+
 ```rust
 // ✅ Good - Validate with Move
 runtime.validate_transfer(&from, &to, amount)?;
@@ -198,6 +207,7 @@ if from != to && amount > 0 { ... }
 ```
 
 ### 3. จัดการ Errors
+
 ```rust
 // ✅ Good - Handle Result
 balance.increase(amount)
@@ -210,17 +220,20 @@ balance.increase(amount).unwrap();
 ## Roadmap
 
 ### Phase 1: ✅ Complete
+
 - [x] Move Balance integration
 - [x] KANARI token support
 - [x] Move VM validation
 - [x] CLI interface
 
 ### Phase 2: 🔄 In Progress
+
 - [ ] Coin module integration
 - [ ] Multi-token support
 - [ ] Staking/rewards
 
 ### Phase 3: 📋 Planned
+
 - [ ] Smart contract deployment
 - [ ] DeFi features
 - [ ] Cross-chain bridge

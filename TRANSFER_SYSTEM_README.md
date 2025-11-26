@@ -7,7 +7,7 @@
 ```
 kanari-cp/
 ├── crates/
-│   ├── kanari-bank/          # CLI Application (Rust)
+│   ├── kanari/               # CLI Application (Rust)
 │   ├── kanari-common/        # Shared utilities
 │   ├── kanari-crypto/        # Cryptographic functions
 │   ├── kanari-types/         # Type definitions
@@ -41,7 +41,7 @@ kanari-cp/
 - **Batch Transfer**: โอนเงินให้หลายที่อยู่พร้อมกัน
 - **Multi-Signature**: โอนเงินที่ต้องการลายเซ็นหลายคน
 
-### 3. Kanari Bank CLI (`kanari-bank`)
+### 3. Kanari CLI (`kanari`)
 
 CLI application สำหรับจัดการบัญชีและโอนเงิน
 
@@ -69,51 +69,57 @@ cargo build --release
 #### 1. สร้างบัญชี
 
 ```powershell
-cargo run --bin kanari-bank -- create-account --address 0x1234567890abcdef
+cargo run --bin kanari -- create-account --address 0x1234567890abcdef
 ```
 
 #### 2. Mint เหรียญ
 
+### 3. Kanari CLI (`kanari`)
+
 ```powershell
-cargo run --bin kanari-bank -- mint --amount 1000 --recipient 0x1234567890abcdef
+cargo run --bin kanari -- mint --amount 1000 --recipient 0x1234567890abcdef
 ```
 
 #### 3. โอนเงิน
 
 ```powershell
-cargo run --bin kanari-bank -- transfer `
+### คำสั่งพื้นฐาน
     --from 0x1234567890abcdef `
     --to 0xfedcba0987654321 `
     --amount 500
 ```
 
+cargo run --bin kanari -- create-account --address 0x1234567890abcdef
+
 #### 4. ตรวจสอบยอดเงิน
 
 ```powershell
-cargo run --bin kanari-bank -- balance --address 0x1234567890abcdef
+cargo run --bin kanari -- balance --address 0x1234567890abcdef
 ```
+
+cargo run --bin kanari -- mint --amount 1000 --recipient 0x1234567890abcdef
 
 #### 5. สร้าง Escrow
 
 ```powershell
-cargo run --bin kanari-bank -- escrow `
+cargo run --bin kanari -- escrow `
     --from 0x1234567890abcdef `
-    --to 0xfedcba0987654321 `
+cargo run --bin kanari -- transfer `
     --amount 300
 ```
 
 #### 6. โอนเงินแบบ Batch
 
 ```powershell
-cargo run --bin kanari-bank -- batch-transfer `
+cargo run --bin kanari -- batch-transfer `
     --from 0x1234567890abcdef `
-    --recipients "0xAAAA,0xBBBB,0xCCCC" `
+cargo run --bin kanari -- balance --address 0x1234567890abcdef
     --amounts "100,200,300"
 ```
 
 ## การ Build และ Test Move Modules
 
-### Compile Move contracts
+cargo run --bin kanari -- escrow `
 
 ```powershell
 cd crates/packages/system
@@ -122,8 +128,9 @@ iota move build
 
 ### Run Move tests
 
-```powershell
+cargo run --bin kanari -- batch-transfer `
 iota move test
+
 ```
 
 ### Run specific test
@@ -155,29 +162,30 @@ Rust CLI เชื่อมต่อกับ Move VM ผ่าน:
 
 ### Example 1: Basic Transfer
 
-```rust
-// Create accounts
-kanari-bank create-account --address 0xAlice
-kanari-bank create-account --address 0xBob
+```powershell
+# สร้างบัญชีผู้ใช้
+kanari create-account --address 0xAlice
+kanari create-account --address 0xBob
 
-// Mint coins to Alice
-kanari-bank mint --amount 1000 --recipient 0xAlice
+# Mint ให้ Alice
+kanari mint --amount 1000 --recipient 0xAlice
 
-// Transfer from Alice to Bob
-kanari-bank transfer --from 0xAlice --to 0xBob --amount 500
+# Transfer from Alice to Bob
+kanari transfer --from 0xAlice --to 0xBob --amount 500
 
-// Check balances
-kanari-bank balance --address 0xAlice  // 500
-kanari-bank balance --address 0xBob    // 500
+# ตรวจสอบยอด
+kanari balance --address 0xBob    // 500
 ```
+
+kanari mint --amount 1000 --recipient 0xAlice
 
 ### Example 2: Scheduled Transfer (ใน Move)
 
-```move
+kanari transfer --from 0xAlice --to 0xBob --amount 500
 // Create scheduled transfer that unlocks after 1 day
 let coin = coin::mint(&mut treasury_cap, 1000, ctx);
-let scheduled = transfer::create_scheduled_transfer(
-    coin,
+kanari balance --address 0xAlice  // 500
+kanari balance --address 0xBob    // 500
     recipient_address,
     clock::timestamp_ms(clock) + 86400000, // +1 day
     ctx
@@ -189,6 +197,7 @@ let claimed_coin = transfer::claim_scheduled_transfer(
     clock,
     ctx
 );
+
 ```
 
 ### Example 3: Stream Transfer
@@ -229,7 +238,7 @@ iota move test --coverage
 ### Integration Tests (Rust)
 
 ```powershell
-cargo test --package kanari-bank
+cargo test --package kanari
 ```
 
 ### Run all tests
@@ -238,7 +247,7 @@ cargo test --package kanari-bank
 # Move tests
 cd crates/packages/system ; iota move test
 
-# Rust tests
+cargo test --package kanari
 cargo test --workspace
 ```
 
@@ -248,7 +257,7 @@ cargo test --workspace
 
 1. เพิ่มฟังก์ชันใน Move module (`sources/*.move`)
 2. เขียน tests (`tests/*.move`)
-3. อัปเดต Rust CLI (`kanari-bank/src/main.rs`)
+3. อัปเดต Rust CLI (`kanari/src/main.rs`)
 4. Build และ test
 
 ### Roadmap
@@ -257,7 +266,9 @@ cargo test --workspace
 - [ ] Governance module
 - [ ] Staking rewards
 - [ ] Cross-chain bridges
-- [ ] Web UI dashboard
+
+3. อัปเดต Rust CLI (`kanari/src/main.rs`)
+
 - [ ] Mobile app integration
 
 ## License

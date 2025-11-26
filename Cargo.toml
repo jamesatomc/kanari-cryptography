@@ -14,10 +14,11 @@ exclude = [
 # Members List: Crates that are part of this workspace.
 # These are the core components of the "kanari-" project.
 members = [
-      "crates/kanari-bank",
+      "crates/kanari",
       "crates/kanari-common",
       "crates/kanari-crypto",
       "crates/kanari-frameworks", 
+      "crates/kanari-move-runtime", 
       "crates/kanari-types"
 ]
 
@@ -41,6 +42,9 @@ argon2 = { version = "0.5.3", default-features = true }
 kanari-common = { path = "crates/kanari-common" }
 kanari-crypto = { path = "crates/kanari-crypto" }
 kanari-types = { path = "crates/kanari-types" }
+kanari-move-runtime = { path = "crates/kanari-move-runtime" }
+kanari-frameworks = { path = "crates/kanari-frameworks" }
+
 
 # Move dependencies
 move-binary-format = { path = "third_party/move/crates/move-binary-format" }

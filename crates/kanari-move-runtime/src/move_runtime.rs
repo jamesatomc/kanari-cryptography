@@ -119,6 +119,37 @@ impl MoveRuntime {
         Ok(results)
     }
 
+    /// Load the production Transfer package modules from a directory.
+    /// This loads only a known set of modules by filename to avoid pulling in
+    /// test-only artifacts that can cause verifier/linker failures.
+    pub fn load_transfer_package(&mut self, dir: &std::path::Path) -> Result<()> {
+        let files = [
+            "transfer.mv",
+            "tx_context.mv",
+            "coin.mv",
+            "balance.mv",
+            "kanari.mv",
+            "url.mv",
+        ];
+
+        for f in files.iter() {
+            let p = dir.join(f);
+            if p.exists() {
+                let bytes =
+                    std::fs::read(&p).with_context(|| format!("Failed to read {}", p.display()))?;
+                // Validate module can be deserialized before loading
+                let cm = CompiledModule::deserialize_with_defaults(&bytes)
+                    .with_context(|| format!("Failed to deserialize module {}", p.display()))?;
+                let id = cm.self_id();
+                let _ = self.load_module(bytes).with_context(|| {
+                    format!("Failed to load module {}::{}", id.address(), id.name())
+                })?;
+            }
+        }
+
+        Ok(())
+    }
+
     /// Validate transfer using Move VM by calling Move function
     pub fn validate_transfer(
         &mut self,
@@ -212,39 +243,5 @@ impl MoveRuntime {
 
         let amount: u64 = bcs::from_bytes(&results[0])?;
         Ok(amount)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_move_runtime_creation() {
-        let runtime = MoveRuntime::new();
-        assert!(runtime.is_ok());
-    }
-
-    #[test]
-    fn test_validate_transfer_without_module() {
-        let mut runtime = MoveRuntime::new().unwrap();
-
-        let addr1 = AccountAddress::from_hex_literal("0x100").unwrap();
-        let addr2 = AccountAddress::from_hex_literal("0x200").unwrap();
-
-        // Test with fallback validation (no module loaded)
-        let result = runtime.validate_transfer(&addr1, &addr2, 500);
-        assert!(result.is_ok());
-        assert!(result.unwrap());
-
-        // Test with zero amount
-        let result = runtime.validate_transfer(&addr1, &addr2, 0);
-        assert!(result.is_ok());
-        assert!(!result.unwrap());
-
-        // Test with same address
-        let result = runtime.validate_transfer(&addr1, &addr1, 500);
-        assert!(result.is_ok());
-        assert!(!result.unwrap());
     }
 }

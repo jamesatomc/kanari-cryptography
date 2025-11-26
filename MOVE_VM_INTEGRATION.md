@@ -5,6 +5,7 @@
 ระบบ Kanari Bank ตอนนี้มี **2 โหมดการทำงาน**:
 
 ### 1. โหมด Simulation (ปัจจุบัน - ใช้งานได้)
+
 - ใช้ Rust HashMap เก็บข้อมูลใน memory
 - บันทึกลง JSON file เพื่อ persistence
 - **ไม่ได้ใช้ Move VM จริงๆ**
@@ -12,6 +13,7 @@
 - เหมาะสำหรับ testing และ development
 
 ### 2. โหมด Move VM (อยู่ระหว่างพัฒนา)
+
 - เชื่อมต่อกับ Move VM จริง
 - รัน Move bytecode จริงๆ
 - ต้อง compile Move modules ก่อน
@@ -22,7 +24,7 @@
 ```
 kanari-cp/
 ├── crates/
-│   ├── kanari-bank/
+│   ├── kanari/
 │   │   ├── src/
 │   │   │   ├── main.rs            # CLI application
 │   │   │   └── move_runtime.rs    # Move VM integration
@@ -44,19 +46,19 @@ kanari-cp/
 
 ```powershell
 # สร้างบัญชี
-cargo run --bin kanari-bank -- create-account --address 0x1234
+cargo run --bin kanari -- create-account --address 0x1234
 
 # Mint เหรียญ
-cargo run --bin kanari-bank -- mint --amount 1000 --recipient 0x1234
+cargo run --bin kanari -- mint --amount 1000 --recipient 0x1234
 
 # โอนเงิน
-cargo run --bin kanari-bank -- transfer --from 0x1234 --to 0x5678 --amount 500
+cargo run --bin kanari -- transfer --from 0x1234 --to 0x5678 --amount 500
 
 # ดูยอด
-cargo run --bin kanari-bank -- balance --address 0x1234
+cargo run --bin kanari -- balance --address 0x1234
 
 # ดูบัญชีทั้งหมด
-cargo run --bin kanari-bank -- list
+cargo run --bin kanari -- list
 ```
 
 ### การเชื่อมต่อ Move VM (Experimental)
@@ -72,21 +74,21 @@ move build
 # แบบที่ 2: ใช้ IOTA Move CLI
 iota move build --skip-fetch-latest-git-deps
 
-# แบบที่ 3: ใช้ผ่าน Kanari Bank CLI
-cargo run --bin kanari-bank -- compile-move --path crates/packages/system
+# แบบที่ 3: ใช้ผ่าน Kanari CLI
+cargo run --bin kanari -- compile-move --path crates/packages/system
 ```
 
 #### ขั้นตอนที่ 2: Initialize Move VM
 
 ```powershell
-cargo run --bin kanari-bank -- init-move
+cargo run --bin kanari -- init-move
 ```
 
 #### ขั้นตอนที่ 3: ใช้งานกับ Move VM
 
 ```powershell
 # (ยังอยู่ระหว่างพัฒนา)
-cargo run --bin kanari-bank -- --use-move-vm transfer --from 0x1234 --to 0x5678 --amount 500
+cargo run --bin kanari -- --use-move-vm transfer --from 0x1234 --to 0x5678 --amount 500
 ```
 
 ## Move Modules
@@ -111,6 +113,7 @@ module system::simple_coin {
 ```
 
 **คุณสมบัติ:**
+
 - ✅ ไม่ต้องพึ่ง external dependencies
 - ✅ Compile ได้เร็ว
 - ✅ เหมาะสำหรับ testing
@@ -136,6 +139,7 @@ module system::transfer {
 ```
 
 **คุณสมบัติ:**
+
 - ✅ Full features
 - ✅ Production ready
 - ❌ ต้องพึ่ง IOTA framework
@@ -202,6 +206,7 @@ module system::transfer {
 **สาเหตุ:** IOTA framework dependencies ไม่สามารถ fetch ได้
 
 **วิธีแก้:**
+
 ```powershell
 # 1. ใช้ simple_coin.move แทน
 cd crates/packages/system
@@ -217,12 +222,13 @@ iota move build --skip-fetch-latest-git-deps
 **สาเหตุ:** ยังไม่มี compiled modules
 
 **วิธีแก้:**
+
 ```powershell
 # Compile ก่อน
-cargo run --bin kanari-bank -- compile-move
+cargo run --bin kanari -- compile-move
 
 # แล้วค่อย init
-cargo run --bin kanari-bank -- init-move
+cargo run --bin kanari -- init-move
 ```
 
 ### ปัญหา: Type mismatch ใน Move VM
@@ -248,22 +254,25 @@ Get-ChildItem crates/packages/system/build -Recurse -Filter *.mv | Select-Object
 ```powershell
 # เปิด logging
 $env:RUST_LOG="debug"
-cargo run --bin kanari-bank -- init-move
+cargo run --bin kanari -- init-move
 ```
 
 ## สรุป
 
-**ตอนนี้ระบบทำงานได้ดีแล้วใน Simulation mode** 
+**ตอนนี้ระบบทำงานได้ดีแล้วใน Simulation mode**
+
 - ข้อมูลถาวร (persistent)
 - ใช้งานง่าย
 - เร็วและเสถียร
 
 **การเชื่อมต่อ Move VM อยู่ระหว่างพัฒนา**
+
 - Infrastructure พร้อมแล้ว
 - ต้องทำ state synchronization
 - ต้อง handle type conversions
 
 **แนะนำ:**
+
 - ใช้ Simulation mode สำหรับตอนนี้
 - พัฒนา Move modules แยกต่างหาก
 - Integrate ทีละส่วน

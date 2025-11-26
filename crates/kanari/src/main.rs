@@ -12,15 +12,11 @@ use kanari_crypto::{
     wallet::{list_wallet_files, load_wallet, save_wallet},
 };
 
-mod move_runtime;
-mod move_vm_state;
+use kanari_move_runtime::{MoveRuntime, MoveVMState};
 
-use move_runtime::MoveRuntime;
-use move_vm_state::MoveVMState;
-
-/// Kanari Bank - A Move-based money transfer system
+/// Kanari - A Move-based money transfer system
 #[derive(Parser)]
-#[command(name = "kanari-bank")]
+#[command(name = "kanari")]
 #[command(about = "Money transfer system using Move language", long_about = None)]
 struct Cli {
     #[command(subcommand)]
@@ -140,7 +136,7 @@ fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    info!("Kanari Bank - Move-based Transfer System");
+    info!("Kanari - Move-based Transfer System");
     info!("==========================================");
 
     let mut state = MoveVMState::load()?;
@@ -338,7 +334,11 @@ fn main() -> Result<()> {
                 from,
                 state.get_balance_formatted(&from_addr)
             );
-            println!("  To: {} (balance: {})", to, state.get_balance_formatted(&to_addr));
+            println!(
+                "  To: {} (balance: {})",
+                to,
+                state.get_balance_formatted(&to_addr)
+            );
             println!("  Amount: {} KANARI ({} MIST)", amount, amount_mist);
         }
 
@@ -346,12 +346,15 @@ fn main() -> Result<()> {
             let addr = parse_address(&recipient)?;
             // Convert KANARI to MIST
             let amount_mist = kanari_to_mist(amount)?;
-            
+
             // Use Move Balance mint operation
             state.mint(addr, amount_mist)?;
             state.save()?;
-            
-            println!("✓ Minted {} KANARI ({} MIST) to {}", amount, amount_mist, recipient);
+
+            println!(
+                "✓ Minted {} KANARI ({} MIST) to {}",
+                amount, amount_mist, recipient
+            );
             println!("  New balance: {}", state.get_balance_formatted(&addr));
             println!("  Total supply: {}", state.get_total_supply_formatted());
         }

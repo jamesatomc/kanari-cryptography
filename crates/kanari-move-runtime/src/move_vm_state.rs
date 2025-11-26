@@ -1,7 +1,6 @@
 use crate::move_runtime::MoveRuntime;
 use anyhow::{Context, Result};
 use kanari_types::balance::BalanceRecord;
-use kanari_types::kanari::KanariModule;
 use kanari_types::transfer::TransferRecord;
 use move_core_types::account_address::AccountAddress;
 use serde::{Deserialize, Serialize};
@@ -9,7 +8,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// State manager that uses Move VM for execution
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct MoveVMState {
     /// Account balances in MIST - managed by Move VM Balance module
     accounts: HashMap<String, BalanceRecord>,
@@ -21,58 +20,59 @@ pub struct MoveVMState {
 
 impl MoveVMState {
     pub fn new() -> Self {
-        Self {
-            accounts: HashMap::new(),
-            transfers: Vec::new(),
-            total_supply: 0,
-        }
+        Self::default()
     }
 
-    pub fn data_file() -> PathBuf {
-        // Use .kari/kanari-db in user home directory
+    pub fn db_path() -> PathBuf {
+        // Use ~/.kari/kanari-db/move_vm_db as RocksDB directory
         let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-        home.join(".kari")
-            .join("kanari-db")
-            .join("move_vm_data.json")
+        home.join(".kari").join("kanari-db").join("move_vm_db")
     }
 
     pub fn load() -> Result<Self> {
-        let path = Self::data_file();
+        let db_path = Self::db_path();
 
         // Create parent directory if it doesn't exist
-        if let Some(parent) = path.parent() {
+        if let Some(parent) = db_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
 
-        if path.exists() {
-            let data = std::fs::read_to_string(&path)?;
-            let state: MoveVMState = serde_json::from_str(&data)?;
-            Ok(state)
+        // Open RocksDB (will create if missing)
+        let db = rocksdb::DB::open_default(&db_path).context("Failed to open RocksDB")?;
+
+        if let Ok(Some(value)) = db.get(b"state") {
+            let data: MoveVMState = serde_json::from_slice(&value)?;
+            Ok(data)
         } else {
             Ok(Self::new())
         }
     }
 
     pub fn save(&self) -> Result<()> {
-        let path = Self::data_file();
-        let data = serde_json::to_string_pretty(&self)?;
-        std::fs::write(&path, data)?;
+        let db_path = Self::db_path();
+        if let Some(parent) = db_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let db = rocksdb::DB::open_default(&db_path).context("Failed to open RocksDB")?;
+        let data = serde_json::to_vec(self)?;
+        db.put(b"state", data)
+            .context("Failed to write state to RocksDB")?;
         Ok(())
     }
 
     /// Convert KANARI to MIST
     pub fn kanari_to_mist(kanari: u64) -> u64 {
-        KanariModule::kanari_to_mist(kanari)
+        kanari_types::kanari::KanariModule::kanari_to_mist(kanari)
     }
 
     /// Convert MIST to KANARI
     pub fn mist_to_kanari(mist: u64) -> u64 {
-        KanariModule::mist_to_kanari(mist)
+        kanari_types::kanari::KanariModule::mist_to_kanari(mist)
     }
 
     /// Format MIST amount as KANARI string
     pub fn format_balance(mist: u64) -> String {
-        KanariModule::format_kanari(mist)
+        kanari_types::kanari::KanariModule::format_kanari(mist)
     }
 
     /// Create account with Move VM Balance
@@ -89,10 +89,7 @@ impl MoveVMState {
     /// Get balance in MIST
     pub fn get_balance(&self, address: &AccountAddress) -> u64 {
         let addr_hex = format!("{}", address);
-        self.accounts
-            .get(&addr_hex)
-            .map(|b| b.value)
-            .unwrap_or(0)
+        self.accounts.get(&addr_hex).map(|b| b.value).unwrap_or(0)
     }
 
     /// Get balance formatted as KANARI
@@ -118,7 +115,7 @@ impl MoveVMState {
     /// Mint coins to an account using Move Balance operations
     pub fn mint(&mut self, address: AccountAddress, amount: u64) -> Result<()> {
         let addr_hex = format!("{}", address);
-        
+
         if let Some(balance) = self.accounts.get_mut(&addr_hex) {
             // Use Move Balance increase operation
             balance.increase(amount)?;
@@ -128,7 +125,7 @@ impl MoveVMState {
             balance.increase(amount)?;
             self.accounts.insert(addr_hex, balance);
         }
-        
+
         self.total_supply += amount;
         Ok(())
     }
@@ -145,12 +142,18 @@ impl MoveVMState {
         let to_hex = format!("{}", to);
 
         // Get sender balance
-        let from_balance = self.accounts.get_mut(&from_hex)
+        let from_balance = self
+            .accounts
+            .get_mut(&from_hex)
             .ok_or_else(|| anyhow::anyhow!("Sender account not found"))?;
 
         // Verify sufficient balance using Move Balance module
         if !from_balance.is_sufficient(amount) {
-            anyhow::bail!("Insufficient balance: has {}, need {}", from_balance.value, amount);
+            anyhow::bail!(
+                "Insufficient balance: has {}, need {}",
+                from_balance.value,
+                amount
+            );
         }
 
         // Call Move function to validate transfer
@@ -180,22 +183,27 @@ impl MoveVMState {
 
         println!(
             "✓ Move VM validated transfer: {} → {} amount: {} MIST ({})",
-            from, to, move_amount, Self::format_balance(move_amount)
+            from,
+            to,
+            move_amount,
+            Self::format_balance(move_amount)
         );
 
         // Perform balance operations using Move Balance module
         // Decrease sender balance
         let from_balance = self.accounts.get_mut(&from_hex).unwrap();
-        from_balance.decrease(amount)
+        from_balance
+            .decrease(amount)
             .context("Failed to decrease sender balance")?;
 
         // Increase recipient balance (create account if needed)
         if !self.accounts.contains_key(&to_hex) {
             self.accounts.insert(to_hex.clone(), BalanceRecord::zero());
         }
-        
+
         let to_balance = self.accounts.get_mut(&to_hex).unwrap();
-        to_balance.increase(amount)
+        to_balance
+            .increase(amount)
             .context("Failed to increase recipient balance")?;
 
         // Record transfer
