@@ -221,4 +221,18 @@ impl MoveVMState {
     pub fn get_total_supply_formatted(&self) -> String {
         Self::format_balance(self.total_supply)
     }
+
+    /// Return a vector of (address, balance_mist) for accounts with non-zero balance
+    pub fn nonzero_balances(&self) -> Vec<(String, u64)> {
+        self.accounts
+            .iter()
+            .filter_map(|(addr, record)| {
+                if record.value > 0 {
+                    Some((addr.clone(), record.value))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
 }

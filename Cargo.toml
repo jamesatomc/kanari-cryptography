@@ -16,7 +16,8 @@ exclude = [
 members = [
       "crates/kanari",
       "crates/kanari-common",
-      "crates/kanari-crypto",
+      "crates/kanari-crypto", 
+      "crates/kanari-framework-builder",
       "crates/kanari-frameworks", 
       "crates/kanari-move-runtime", 
       "crates/kanari-types"
@@ -24,6 +25,11 @@ members = [
 
 # Dependencies that should be kept in sync through the whole workspace
 [workspace.dependencies]
+walkdir = "2.3.1"
+smallvec = "1.6.1"
+sha2 = "0.9.3"
+anyhow = "1.0.52"
+tempfile = "3.2.0"
 sha3 = "0.10.8"
 bip39 = { version = "2.0.0", features = ["rand"] }
 rand = "0.8.5"
@@ -72,8 +78,4 @@ move-abstract-stack = { path = "third_party/move/crates/move-abstract-stack" }
 move-docgen = { path = "third_party/move/crates/move-docgen" }
 move-errmapgen = { path = "third_party/move/crates/move-errmapgen" }
 move-stdlib-natives = { path = "third_party/move/crates/move-stdlib-natives" }
-walkdir = "2.3.1"
-smallvec = "1.6.1"
-sha2 = "0.9.3"
-anyhow = "1.0.52"
-tempfile = "3.2.0"
+

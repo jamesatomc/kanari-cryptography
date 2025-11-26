@@ -141,10 +141,19 @@ fn main() -> Result<()> {
         match genesis::dev_account_address() {
             Ok(dev_addr) => {
                 let total = KanariModule::TOTAL_SUPPLY_MIST;
-                println!("Genesis: minting {} MIST to {}", total, dev_addr);
+                println!("Genesis: calling Move initializer and minting {} MIST to {}", total, dev_addr);
+
+                // Call Move runtime genesis initializer (for on-chain/module auditability)
+                if let Err(e) = runtime.initialize_genesis(&dev_addr) {
+                    println!("Warning: Move genesis initializer failed: {}", e);
+                } else {
+                    println!("✓ Move genesis initializer executed")
+                }
+
+                // Update persistent MoveVMState so balances/total_supply reflect genesis
                 state.mint(dev_addr, total)?;
                 state.save()?;
-                println!("✓ Genesis completed: total supply set")
+                println!("✓ Genesis completed: total supply set (local state updated)")
             }
             Err(e) => {
                 println!("Failed to parse dev address for genesis: {}", e);

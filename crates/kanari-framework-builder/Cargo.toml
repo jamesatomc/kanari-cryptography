@@ -1,0 +1,8 @@
+[package]
+name = "kanari-framework-builder"
+version = "0.1.0"
+edition = "2024"
+build = "build.rs"
+
+[build-dependencies]
+move-package.workspace = true
