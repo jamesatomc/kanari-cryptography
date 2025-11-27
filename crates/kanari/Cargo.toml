@@ -42,6 +42,7 @@ kanari-types = { path = "../kanari-types" }
 kanari-move-runtime = { path = "../kanari-move-runtime" }
 kanari-rpc-client = { path = "../kanari-rpc-client" }
 kanari-rpc-api = { path = "../kanari-rpc-api" }
+kanari-common = { path = "../kanari-common" }
 
 # Move dependencies
 move-core-types = { workspace = true }
