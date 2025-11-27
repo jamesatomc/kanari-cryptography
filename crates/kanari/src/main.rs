@@ -2,9 +2,11 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use std::str::FromStr;
 use kanari_types::address::Address;
+use kanari_types::module_registry::ModuleRegistry;
+use kanari_move_runtime::BlockchainEngine;
 use kanari_crypto::{
     keys::{generate_keypair, generate_mnemonic, keypair_from_mnemonic, CurveType},
-    wallet::{list_wallet_files, load_wallet, save_wallet, Wallet}, // added Wallet
+    wallet::{list_wallet_files, load_wallet, save_wallet, Wallet},
 };
 
 /// Kanari - A Move-based money transfer system
@@ -53,6 +55,31 @@ enum Commands {
         #[arg(long, default_value = "false")]
         show_secrets: bool,
     },
+    /// Transfer Kanari tokens to another address
+    Transfer {
+        /// Sender wallet address
+        #[arg(short, long)]
+        from: String,
+        /// Recipient address
+        #[arg(short, long)]
+        to: String,
+        /// Amount in Kanari (will be converted to Mist)
+        #[arg(short, long)]
+        amount: f64,
+        /// Wallet password
+        #[arg(short, long)]
+        password: String,
+    },
+    /// Check wallet balance
+    Balance {
+        /// Wallet address
+        #[arg(short, long)]
+        address: String,
+    },
+    /// Show blockchain statistics
+    Stats,
+    /// Show available Move modules
+    Modules,
 }
 
 fn main() -> Result<()> {
@@ -129,6 +156,119 @@ fn main() -> Result<()> {
                 println!("Address: {}", wallet.address.to_string());
             }
             Ok(())
+		}
+
+		Commands::Transfer { from, to, amount, password } => {
+			// Load sender wallet to verify ownership
+			let _wallet = load_wallet(&from, &password)
+				.context("Failed to load sender wallet")?;
+
+			println!("💸 Transferring Kanari tokens...");
+			println!("  From: {}", from);
+			println!("  To: {}", to);
+			println!("  Amount: {} KANARI", amount);
+
+			// Convert Kanari to Mist (1 KANARI = 10^9 Mist)
+			const MIST_PER_KANARI: f64 = 1_000_000_000.0;
+			let amount_mist = (amount * MIST_PER_KANARI) as u64;
+			println!("  Amount (Mist): {}", amount_mist);
+
+			// Initialize blockchain engine
+			let engine = BlockchainEngine::new()
+				.context("Failed to initialize blockchain engine")?;
+
+			// Submit transfer transaction with gas
+			let tx = kanari_move_runtime::Transaction::new_transfer(
+				from.clone(),
+				to.clone(),
+				amount_mist,
+			);
+
+			println!("  Gas Limit: {}", tx.gas_limit());
+			println!("  Gas Price: {} Mist/gas", tx.gas_price());
+
+			let tx_hash = engine.submit_transaction(tx)
+				.context("Failed to submit transaction")?;
+
+			println!("  ✅ Transaction submitted: {}", hex::encode(&tx_hash[..16]));
+
+			// Try to produce a block
+			match engine.produce_block() {
+				Ok(block_info) => {
+					println!("  ⛏️  Block #{} produced", block_info.height);
+					println!("     Executed: {} txs", block_info.executed);
+					if block_info.failed > 0 {
+						println!("     Failed: {} txs", block_info.failed);
+					}
+				}
+				Err(e) => {
+					eprintln!("  ⚠️  Block production failed: {}", e);
+					println!("  Transaction is pending...");
+				}
+			}
+
+			Ok(())
+		}
+
+		Commands::Balance { address } => {
+			let engine = BlockchainEngine::new()
+				.context("Failed to initialize blockchain engine")?;
+
+			match engine.get_account_info(&address) {
+				Some(account) => {
+					const MIST_PER_KANARI: f64 = 1_000_000_000.0;
+					let balance_kanari = account.balance as f64 / MIST_PER_KANARI;
+
+					println!("💰 Balance for {}", address);
+					println!("  Kanari: {:.9} KANARI", balance_kanari);
+					println!("  Mist: {} Mist", account.balance);
+					println!("  Sequence: {}", account.sequence_number);
+					if !account.modules.is_empty() {
+						println!("  Modules deployed: {}", account.modules.len());
+					}
+				}
+				None => {
+					println!("❌ Account not found: {}", address);
+					println!("   This address has no transactions yet.");
+				}
+			}
+
+			Ok(())
+		}
+
+		Commands::Stats => {
+			let engine = BlockchainEngine::new()
+				.context("Failed to initialize blockchain engine")?;
+
+			let stats = engine.get_stats();
+			const MIST_PER_KANARI: f64 = 1_000_000_000.0;
+			let total_supply_kanari = stats.total_supply as f64 / MIST_PER_KANARI;
+
+			println!("📊 Kanari Blockchain Statistics");
+			println!("─────────────────────────────────");
+			println!("  Block Height: {}", stats.height);
+			println!("  Total Blocks: {}", stats.total_blocks);
+			println!("  Total Transactions: {}", stats.total_transactions);
+			println!("  Pending Transactions: {}", stats.pending_transactions);
+			println!("  Total Accounts: {}", stats.total_accounts);
+			println!("  Total Supply: {:.0} KANARI", total_supply_kanari);
+			println!("─────────────────────────────────");
+
+			Ok(())
+		}
+
+		Commands::Modules => {
+			println!("📦 Available Move Modules");
+			println!("─────────────────────────────────");
+
+			for info in ModuleRegistry::all_modules_info() {
+				println!("\n{}", info.display());
+			}
+
+			println!("\n─────────────────────────────────");
+			println!("Total modules: {}", ModuleRegistry::all_modules().len());
+
+			Ok(())
 		}
 
 	}
