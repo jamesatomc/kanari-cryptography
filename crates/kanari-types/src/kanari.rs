@@ -30,6 +30,17 @@ impl KanariModule {
         Ok(ModuleId::new(address, module_name))
     }
 
+    /// Get function names used in kanari module
+    pub fn function_names() -> KanariFunctions {
+        KanariFunctions {
+            new: "new",
+            init_genesis: "init_genesis",
+            transfer: "transfer",
+            mint_to: "mint_to",
+            mint_balance: "mint_balance",
+            burn: "burn",
+        }
+    }
     /// Convert Kanari to Mist
     pub fn kanari_to_mist(kanari: u64) -> u64 {
         kanari.saturating_mul(Self::MIST_PER_KANARI)
@@ -51,6 +62,17 @@ impl KanariModule {
         }
     }
 }
+
+/// Kanari module function names
+pub struct KanariFunctions {
+    pub new: &'static str,
+    pub init_genesis: &'static str,
+    pub transfer: &'static str,
+    pub mint_to: &'static str,
+    pub mint_balance: &'static str,
+    pub burn: &'static str,
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -102,3 +124,4 @@ mod tests {
         assert!(module_id.is_ok());
     }
 }
+

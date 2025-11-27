@@ -57,9 +57,11 @@ fn main() {
     println!("   Name: {}", metadata.name_str().unwrap());
 
     let coin_fns = coin::CoinModule::function_names();
+    // `increase_supply` has moved from `coin` to the `balance` module.
+    let balance_fns = balance::BalanceModule::function_names();
     println!(
-        "   Available functions: {}, {}, ...",
-        coin_fns.create_currency, coin_fns.increase_supply
+        "   Available functions: {}, {} (supply helpers in balance: {}), ...",
+        coin_fns.create_currency, coin_fns.treasury_into_supply, balance_fns.increase_supply
     );
 
     // 5. Demonstrate Kanari module

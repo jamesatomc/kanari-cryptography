@@ -1,10 +1,13 @@
 module kanari_system::coin {
     use std::option;
-    use std::ascii::String;
-    use kanari_system::balance::{Self, Balance};
+    use std::string;
+    use std::ascii;
+    use kanari_system::url;
+    use kanari_system::object;
+    use kanari_system::balance::{Self, Balance, Supply};
     use kanari_system::tx_context::TxContext;
     use kanari_system::transfer;
-
+    
     /// Coin resource wrapper with balance
     struct Coin<phantom T> has store, drop {
         balance: Balance<T>,
@@ -12,6 +15,7 @@ module kanari_system::coin {
 
     /// Capability allowing the bearer to mint and burn coins
     struct TreasuryCap<phantom T> has store, drop {
+        id: object::UID,
         total_supply: u64,
     }
 
@@ -19,16 +23,16 @@ module kanari_system::coin {
     struct Treasury<phantom T> has store, drop {
     }
 
-    /// Supply: mutable minting handle consumed to create balances
-    struct Supply<phantom T> has store {
-        total: u64,
-    }
 
-    /// Simple metadata for a currency
-    struct CurrencyMetadata has store, drop {
-        symbol: vector<u8>,
-        name: vector<u8>,
-        description: vector<u8>,
+
+    /// Metadata resource for a currency (stored as an object with UID)
+    struct CoinMetadata<phantom T> has key, store, drop {
+        id: object::UID,
+        decimals: u8,
+        name: string::String,
+        symbol: ascii::String,
+        description: string::String,
+        icon_url: option::Option<url::Url>,
     }
 
     /// Error codes (local to coin module)
@@ -38,25 +42,21 @@ module kanari_system::coin {
     public fun create_currency<T: drop>(
         witness: T,
         decimals: u8,
-        symbol: vector<u8>,
-        name: vector<u8>,
-        description: vector<u8>,
-        icon_url: option::Option<String>,
+        symbol: ascii::String,
+        name: string::String,
+        description: string::String,
+        icon_url: option::Option<url::Url>,
         ctx: &mut TxContext,
-    ): (TreasuryCap<T>, CurrencyMetadata) {
+    ): (TreasuryCap<T>, CoinMetadata<T>) {
         // Token witness is consumed automatically as it has drop ability
         let _ = witness;
         let _ = decimals;
         let _ = icon_url;
         let _ = ctx;
         
-        let treasury_cap = TreasuryCap<T> {
-            total_supply: 0,
-        };
-        
         (
-            treasury_cap,
-            CurrencyMetadata { symbol, name, description },
+            TreasuryCap { id: object::new(ctx), total_supply: 0 },
+            CoinMetadata { id: object::new(ctx), decimals, name, symbol, description, icon_url },
         )
     }
 
@@ -94,6 +94,14 @@ module kanari_system::coin {
         value
     }
 
+    /// Convert a `Coin<T>` into its inner `Balance<T>`.
+    /// This helper is provided so other modules can obtain the balance
+    /// without attempting to destructure `Coin<T>` directly (not allowed outside this module).
+    public fun into_balance<T>(coin: Coin<T>): Balance<T> {
+        let Coin { balance } = coin;
+        balance
+    }
+
     /// Get total supply from TreasuryCap
     public fun total_supply<T>(cap: &TreasuryCap<T>): u64 {
         cap.total_supply
@@ -118,22 +126,12 @@ module kanari_system::coin {
         balance::merge(&mut coin.balance, balance);
     }
 
-    /// Convert a treasury into a supply handle (deprecated)
-    public fun treasury_into_supply<T>(treasury: Treasury<T>): Supply<T> {
-        let Treasury {} = treasury;
-        Supply<T> { total: 0 }
-    }
-
-    /// Increase supply (deprecated)
-    public fun increase_supply<T>(s: Supply<T>, amount: u64): Balance<T> {
-        let Supply { total } = s;
-        let _new_total = total + amount;
-        balance::create(amount)
-    }
-
-    /// Destroy supply handle (deprecated)
-    public fun destroy_supply<T>(s: Supply<T>) {
-        let Supply { total: _ } = s;
+    /// Convert a treasury (or treasury cap) into a supply handle (deprecated)
+    /// This version borrows the `TreasuryCap` so callers can continue to
+    /// use the cap after obtaining a `Supply` handle.
+    public fun treasury_into_supply<T>(cap: &mut TreasuryCap<T>): Supply<T> {
+        let _ = cap;
+        balance::new_supply<T>()
     }
 
 }

@@ -21,6 +21,7 @@ members = [
       "crates/kanari-frameworks", 
       "crates/kanari-move-runtime", 
       "crates/kanari-types"
+      ,"crates/kanari-node"
 ]
 
 # Dependencies that should be kept in sync through the whole workspace

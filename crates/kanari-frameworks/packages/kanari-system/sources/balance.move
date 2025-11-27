@@ -11,6 +11,11 @@ module kanari_system::balance {
         value: u64,
     }
 
+    /// Supply: mutable minting handle consumed to create balances
+    struct Supply<phantom T> has store {
+        total: u64,
+    }
+
     /// สร้าง Balance ใหม่
     public fun zero<T>(): Balance<T> {
         Balance<T> { value: 0 }
@@ -55,6 +60,26 @@ module kanari_system::balance {
         let Balance { value } = balance;
         value
     }
+
+    /// Create a new (empty) supply handle
+    public fun new_supply<T>(): Supply<T> {
+        Supply<T> { total: 0 }
+    }
+
+    /// Increase supply: add `amount` to `s` and return a `Balance` for the newly minted amount.
+    public fun increase_supply<T>(s: &mut Supply<T>, amount: u64): Balance<T> {
+        let new_total = s.total + amount;
+        assert!(new_total >= s.total, error::invalid_argument(ERR_OVERFLOW));
+        s.total = new_total;
+        create<T>(amount)
+    }
+
+    /// Decrease/destroy a supply handle (legacy)
+    public fun destroy_supply<T>(s: Supply<T>) {
+        let Supply { total: _ } = s;
+    }
+
+    
 
     /// รวม Balance สองอัน
     public fun merge<T>(dst: &mut Balance<T>, src: Balance<T>) {

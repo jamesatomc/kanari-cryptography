@@ -76,6 +76,9 @@ impl BalanceModule {
             transfer: "transfer",
             has_sufficient: "has_sufficient",
             destroy: "destroy",
+            new_supply: "new_supply",
+            increase_supply: "increase_supply",
+            destroy_supply: "destroy_supply",
         }
     }
 }
@@ -92,6 +95,9 @@ pub struct BalanceFunctions {
     pub transfer: &'static str,
     pub has_sufficient: &'static str,
     pub destroy: &'static str,
+    pub new_supply: &'static str,
+    pub increase_supply: &'static str,
+    pub destroy_supply: &'static str,
 }
 
 #[cfg(test)]

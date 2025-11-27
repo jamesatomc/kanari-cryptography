@@ -103,8 +103,7 @@ impl CoinModule {
             split: "split",
             join: "join",
             treasury_into_supply: "treasury_into_supply",
-            increase_supply: "increase_supply",
-            destroy_supply: "destroy_supply",
+            into_balance: "into_balance",
         }
     }
 }
@@ -120,8 +119,8 @@ pub struct CoinFunctions {
     pub split: &'static str,
     pub join: &'static str,
     pub treasury_into_supply: &'static str,
-    pub increase_supply: &'static str,
-    pub destroy_supply: &'static str,
+    pub into_balance: &'static str,
+
 }
 
 #[cfg(test)]

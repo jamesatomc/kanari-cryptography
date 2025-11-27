@@ -9,3 +9,5 @@ pub mod tx_context;
 pub mod stdlib;
 
 pub mod genesis;
+pub mod object;
+pub mod block;

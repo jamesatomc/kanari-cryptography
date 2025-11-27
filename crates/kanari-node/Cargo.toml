@@ -1,0 +1,17 @@
+[package]
+name = "kanari-node"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+hex = { workspace = true }
+kanari-move-runtime = { path = "../kanari-move-runtime" }
+kanari-types = { path = "../kanari-types" }
+kanari-crypto = { path = "../kanari-crypto" }
+serde = { workspace = true }
+bcs = { workspace = true }
+move-core-types = { workspace = true }
+
+[profile.dev]
+opt-level = 0

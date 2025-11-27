@@ -18,3 +18,5 @@ move-binary-format = { workspace = true }
 move-vm-types = { workspace = true }
 
 kanari-types = { path = "../kanari-types" }
+kanari-crypto = { path = "../kanari-crypto" }
+move-vm-test-utils = { path = "../../third_party/move/crates/move-vm-test-utils" }

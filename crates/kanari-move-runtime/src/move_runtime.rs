@@ -1,247 +1,149 @@
-use anyhow::{Context, Result};
-use bcs;
-use kanari_types::transfer::TransferModule;
-use move_binary_format::CompiledModule;
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    language_storage::{ModuleId, TypeTag},
-    resolver::{LinkageResolver, ModuleResolver, ResourceResolver},
-};
+// This file contains the MoveRuntime wrapper implementation.
+// It utilizes MoveVM and InMemoryStorage for executing functions and publishing modules.
+
+use anyhow::Result;
+use move_binary_format::file_format::CompiledModule;
+use move_core_types::account_address::AccountAddress;
+use move_core_types::identifier::IdentStr;
+use move_core_types::language_storage::{ModuleId, TypeTag};
 use move_vm_runtime::move_vm::MoveVM;
+use move_vm_test_utils::InMemoryStorage;
 use move_vm_types::gas::UnmeteredGasMeter;
-use std::collections::HashMap;
+use move_core_types::runtime_value::{MoveValue, MoveStruct};
+use move_core_types::account_address::AccountAddress as MoveAccountAddress;
+use move_core_types::identifier::Identifier as MoveIdentifier;
+use move_core_types::language_storage::ModuleId as MoveModuleId;
 
-/// Simple storage implementation for Move VM
-pub struct SimpleStorage {
-    modules: HashMap<ModuleId, Vec<u8>>,
-}
+use crate::move_vm_state::MoveVMState;
 
-impl SimpleStorage {
-    pub fn new() -> Self {
-        Self {
-            modules: HashMap::new(),
-        }
-    }
-
-    pub fn add_module(&mut self, module_id: ModuleId, module_bytes: Vec<u8>) {
-        self.modules.insert(module_id, module_bytes);
-    }
-}
-
-impl ModuleResolver for SimpleStorage {
-    type Error = anyhow::Error;
-
-    fn get_module(
-        &self,
-        module_id: &ModuleId,
-    ) -> std::result::Result<Option<Vec<u8>>, Self::Error> {
-        Ok(self.modules.get(module_id).cloned())
-    }
-}
-
-impl ResourceResolver for SimpleStorage {
-    type Error = anyhow::Error;
-
-    fn get_resource(
-        &self,
-        _address: &AccountAddress,
-        _struct_tag: &move_core_types::language_storage::StructTag,
-    ) -> std::result::Result<Option<Vec<u8>>, Self::Error> {
-        // For now, return None (no resources stored)
-        Ok(None)
-    }
-}
-
-impl LinkageResolver for SimpleStorage {
-    type Error = anyhow::Error;
-}
-
-/// Move VM wrapper for executing Move modules
+/// Simple runtime wrapper around `move-vm` for executing functions and publishing modules.
 pub struct MoveRuntime {
-    vm: MoveVM,
-    storage: SimpleStorage,
+	vm: MoveVM,
+	storage: InMemoryStorage,
+	state: MoveVMState,
 }
 
 impl MoveRuntime {
-    pub fn new() -> Result<Self> {
-        let vm = MoveVM::new(vec![]).context("Failed to create Move VM")?;
+	/// Open the runtime using the default persistent DB path (see README).
+	pub fn new() -> Result<Self> {
+		let state = MoveVMState::open_default()?;
+		let mut storage = InMemoryStorage::new();
+		state.load_into_storage(&mut storage)?;
+		// For simplicity we initialise the VM with no custom natives.
+		let vm = MoveVM::new(vec![]).map_err(|e| anyhow::anyhow!(format!("VM init error: {:?}", e)))?;
+		Ok(MoveRuntime { vm, storage, state })
+	}
 
-        Ok(Self {
-            vm,
-            storage: SimpleStorage::new(),
-        })
-    }
+	/// Run genesis by calling `kanari_system::genesis::init` with a fabricated TxContext
+	/// where sender = @0x0, tx_hash = zeros (32 bytes), epoch = 0, epoch_timestamp_ms = 0, ids_created = 0
+	pub fn run_genesis(&mut self) -> Result<()> {
+		// build a MoveValue::Struct representing TxContext { sender, tx_hash, epoch, epoch_timestamp_ms, ids_created }
+		let sender = MoveAccountAddress::ZERO;
+		let tx_hash_bytes = vec![0u8; 32];
+		let tx_hash_val = MoveValue::vector_u8(tx_hash_bytes);
+		let fields = vec![
+			MoveValue::Address(sender),
+			tx_hash_val,
+			MoveValue::U64(0),
+			MoveValue::U64(0),
+			MoveValue::U64(0),
+		];
+		let txctx = MoveValue::Struct(MoveStruct::new(fields));
+		let arg = txctx.simple_serialize().ok_or_else(|| anyhow::anyhow!("failed to serialize TxContext"))?;
 
-    /// Load compiled Move module
-    pub fn load_module(&mut self, module_bytes: Vec<u8>) -> Result<ModuleId> {
-        let compiled_module = CompiledModule::deserialize_with_defaults(&module_bytes)
-            .context("Failed to deserialize module")?;
+		// prepare session and execute
+		let storage_clone = self.storage.clone();
+		let mut session = self.vm.new_session(storage_clone);
+		let mut gas = UnmeteredGasMeter;
 
-        let module_id = compiled_module.self_id();
-        self.storage.add_module(module_id.clone(), module_bytes);
+		// build module id for kanari_system::genesis
+		let addr = MoveAccountAddress::from_hex_literal("0x2").map_err(|e| anyhow::anyhow!(e.to_string()))?;
+		let name = MoveIdentifier::new("genesis").map_err(|e| anyhow::anyhow!(e.to_string()))?;
+		let module_id = MoveModuleId::new(addr, name);
 
-        Ok(module_id)
-    }
+		let ident = move_core_types::identifier::IdentStr::new("init").map_err(|e| anyhow::anyhow!(e.to_string()))?;
 
-    /// Execute a Move function
-    pub fn execute_function(
-        &mut self,
-        _sender: AccountAddress,
-        module_id: &ModuleId,
-        function_name: &str,
-        _ty_args: Vec<TypeTag>,
-        args: Vec<Vec<u8>>,
-    ) -> Result<Vec<Vec<u8>>> {
-        // Create a new session with our storage
-        let mut session = self.vm.new_session(&self.storage);
+		session.execute_entry_function(&module_id, ident, vec![], vec![arg], &mut gas)
+			.map_err(|e| anyhow::anyhow!(format!("genesis exec error: {:?}", e)))?;
 
-        let function_name = Identifier::new(function_name).context("Invalid function name")?;
+		let (res, new_storage) = session.finish();
+		let (changeset, _events) = res.map_err(|e| anyhow::anyhow!(format!("finish error: {:?}", e)))?;
 
-        // Execute the function
-        let return_values = session
-            .execute_function_bypass_visibility(
-                module_id,
-                &function_name,
-                vec![], // Type args conversion is complex, use empty for now
-                args,
-                &mut UnmeteredGasMeter,
-            )
-            .context("Failed to execute function")?;
+		let mut storage = new_storage;
+		storage.apply(changeset).map_err(|e| anyhow::anyhow!(format!("apply error: {:?}", e)))?;
+		self.storage = storage;
+		Ok(())
+	}
 
-        // Extract just the byte vectors from the return values
-        let results = return_values
-            .return_values
-            .into_iter()
-            .map(|(bytes, _layout)| bytes)
-            .collect();
+	/// Publish a module (bytes) with the given sender address.
+	/// The module is applied to the in-memory storage and persisted to RocksDB.
+	pub fn publish_module(&mut self, module_bytes: Vec<u8>, sender: AccountAddress) -> Result<()> {
+		let storage_clone = self.storage.clone();
+		let mut session = self.vm.new_session(storage_clone);
+		let mut gas = UnmeteredGasMeter;
 
-        Ok(results)
-    }
+		session
+			.publish_module(module_bytes.clone(), sender, &mut gas)
+			.map_err(|e| anyhow::anyhow!(format!("publish error: {:?}", e)))?;
 
-    /// Load the production Transfer package modules from a directory.
-    /// This loads only a known set of modules by filename to avoid pulling in
-    /// test-only artifacts that can cause verifier/linker failures.
-    pub fn load_transfer_package(&mut self, dir: &std::path::Path) -> Result<()> {
-        let files = [
-            "transfer.mv",
-            "tx_context.mv",
-            "coin.mv",
-            "balance.mv",
-            "kanari.mv",
-            "url.mv",
-        ];
+		let (res, new_storage) = session.finish();
+		let (changeset, _events) = res.map_err(|e| anyhow::anyhow!(format!("finish error: {:?}", e)))?;
 
-        for f in files.iter() {
-            let p = dir.join(f);
-            if p.exists() {
-                let bytes =
-                    std::fs::read(&p).with_context(|| format!("Failed to read {}", p.display()))?;
-                // Validate module can be deserialized before loading
-                let cm = CompiledModule::deserialize_with_defaults(&bytes)
-                    .with_context(|| format!("Failed to deserialize module {}", p.display()))?;
-                let id = cm.self_id();
-                let _ = self.load_module(bytes).with_context(|| {
-                    format!("Failed to load module {}::{}", id.address(), id.name())
-                })?;
-            }
-        }
+		let mut storage = new_storage;
+		storage
+			.apply(changeset)
+			.map_err(|e| anyhow::anyhow!(format!("apply error: {:?}", e)))?;
 
-        Ok(())
-    }
+		// update our runtime storage
+		self.storage = storage.clone();
 
-    /// Validate transfer using Move VM by calling Move function
-    pub fn validate_transfer(
-        &mut self,
-        from: &AccountAddress,
-        to: &AccountAddress,
-        amount: u64,
-    ) -> Result<bool> {
-        // Try to call Move function if module is loaded
-        let module_id = TransferModule::get_module_id()?;
+		// persist module bytes to DB so they are available on next startup
+		let compiled = CompiledModule::deserialize_with_defaults(&module_bytes)
+			.map_err(|e| anyhow::anyhow!(format!("deserialize error: {:?}", e)))?;
+		let module_id = compiled.self_id();
+		self.state.save_module(&module_id, &module_bytes)?;
 
-        // Check if module is loaded
-        if self.storage.modules.contains_key(&module_id) {
-            // Serialize arguments
-            let args = vec![bcs::to_bytes(&amount)?];
+		Ok(())
+	}
 
-            // Call is_valid_amount function
-            match self.execute_function(
-                AccountAddress::ZERO,
-                &module_id,
-                "is_valid_amount",
-                vec![],
-                args,
-            ) {
-                Ok(results) => {
-                    if !results.is_empty() {
-                        // Deserialize bool result
-                        let is_valid: bool = bcs::from_bytes(&results[0])?;
-                        // Note: from != to is now validated by Move module
-                        return Ok(is_valid);
-                    }
-                }
-                Err(_) => {
-                    // Fallback to simple validation if Move call fails
-                }
-            }
-        }
+	/// Execute an entry function. `type_args` are Move `TypeTag`s and `args` are serialized
+	/// arguments as Vec<u8> (Move simple-serialized values).
+	pub fn execute_entry_function(
+		&mut self,
+		module_id: &ModuleId,
+		function_name: &str,
+		type_args: Vec<TypeTag>,
+		args: Vec<Vec<u8>>,
+	) -> Result<()> {
+		let storage_clone = self.storage.clone();
+		let mut session = self.vm.new_session(storage_clone);
+		let mut gas = UnmeteredGasMeter;
 
-        // Fallback: Simple validation if module not loaded
-        // Note: In production, consider rejecting if Move module is required
-        Ok(amount > 0 && from != to)
-    }
+		// convert type tags to VM runtime types
+		let mut ty_args_loaded = vec![];
+		for tag in type_args.iter() {
+			let ty = session
+				.load_type(tag)
+				.map_err(|e| anyhow::anyhow!(format!("load type error: {:?}", e)))?;
+			ty_args_loaded.push(ty);
+		}
 
-    /// Create a transfer record using Move VM
-    pub fn create_transfer_record(
-        &mut self,
-        from: &AccountAddress,
-        to: &AccountAddress,
-        amount: u64,
-    ) -> Result<Vec<u8>> {
-        let module_id = TransferModule::get_module_id()?;
+		let ident = IdentStr::new(function_name).map_err(|e| anyhow::anyhow!(e.to_string()))?;
 
-        // Serialize arguments - AccountAddress is serialized directly via BCS
-        let args = vec![
-            bcs::to_bytes(from)?,
-            bcs::to_bytes(to)?,
-            bcs::to_bytes(&amount)?,
-        ];
+		session
+			.execute_entry_function(module_id, ident, ty_args_loaded, args, &mut gas)
+			.map_err(|e| anyhow::anyhow!(format!("exec error: {:?}", e)))?;
 
-        // Call create_transfer function
-        let results = self.execute_function(
-            AccountAddress::ZERO,
-            &module_id,
-            "create_transfer",
-            vec![],
-            args,
-        )?;
+		let (res, new_storage) = session.finish();
+		let (changeset, _events) = res.map_err(|e| anyhow::anyhow!(format!("finish error: {:?}", e)))?;
 
-        if results.is_empty() {
-            anyhow::bail!("No return value from create_transfer");
-        }
+		let mut storage = new_storage;
+		storage
+			.apply(changeset)
+			.map_err(|e| anyhow::anyhow!(format!("apply error: {:?}", e)))?;
 
-        Ok(results[0].clone())
-    }
-
-    /// Get transfer amount from transfer record
-    pub fn get_transfer_amount(&mut self, transfer_bytes: Vec<u8>) -> Result<u64> {
-        let module_id = TransferModule::get_module_id()?;
-
-        // Call get_amount function
-        let results = self.execute_function(
-            AccountAddress::ZERO,
-            &module_id,
-            "get_amount",
-            vec![],
-            vec![transfer_bytes],
-        )?;
-
-        if results.is_empty() {
-            anyhow::bail!("No return value from get_amount");
-        }
-
-        let amount: u64 = bcs::from_bytes(&results[0])?;
-        Ok(amount)
-    }
+		self.storage = storage;
+		Ok(())
+	}
 }
+
