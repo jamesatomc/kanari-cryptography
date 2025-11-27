@@ -1,5 +1,6 @@
 use crate::blockchain::{Block, Blockchain, SignedTransaction, Transaction};
 use crate::changeset::ChangeSet;
+use crate::contract::{ContractCall, ContractDeployment, ContractInfo, ContractRegistry};
 use crate::gas::{GasMeter, GasOperation};
 use crate::move_runtime::MoveRuntime;
 use crate::state::StateManager;
@@ -15,6 +16,7 @@ pub struct BlockchainEngine {
     pub state: Arc<RwLock<StateManager>>,
     pub move_runtime: Arc<RwLock<MoveRuntime>>,
     pub pending_txs: Arc<RwLock<Vec<Transaction>>>,
+    pub contract_registry: Arc<RwLock<ContractRegistry>>,
 }
 
 impl BlockchainEngine {
@@ -23,12 +25,14 @@ impl BlockchainEngine {
         let state = Arc::new(RwLock::new(StateManager::new()));
         let move_runtime = Arc::new(RwLock::new(MoveRuntime::new()?));
         let pending_txs = Arc::new(RwLock::new(Vec::new()));
+        let contract_registry = Arc::new(RwLock::new(ContractRegistry::new()));
 
         Ok(Self {
             blockchain,
             state,
             move_runtime,
             pending_txs,
+            contract_registry,
         })
     }
 
@@ -398,6 +402,104 @@ impl BlockchainEngine {
             sequence_number: acc.sequence_number,
             modules: acc.modules.iter().cloned().collect(),
         })
+    }
+
+    /// Deploy a contract (publish Move module)
+    pub fn deploy_contract(&self, deployment: ContractDeployment) -> Result<Vec<u8>> {
+        let tx = Transaction::PublishModule {
+            sender: deployment.publisher_address(),
+            module_bytes: deployment.bytecode.clone(),
+            module_name: deployment.module_name.clone(),
+            gas_limit: deployment.gas_limit,
+            gas_price: deployment.gas_price,
+        };
+
+        // Create unsigned transaction for now (in production, should be signed)
+        let signed_tx = SignedTransaction::new(tx.clone());
+        let tx_hash = self.submit_transaction(signed_tx)?;
+
+        // Register contract in registry
+        let block_height = self.blockchain.read().unwrap().height();
+        let contract_info = ContractInfo {
+            address: deployment.publisher_address(),
+            module_name: deployment.module_name,
+            bytecode: deployment.bytecode,
+            deployment_tx: tx_hash.clone(),
+            deployed_at: block_height,
+            abi: crate::contract::ContractABI::new(),
+            metadata: deployment.metadata,
+        };
+
+        self.contract_registry.write().unwrap().register(contract_info);
+
+        Ok(tx_hash)
+    }
+
+    /// Call a contract function
+    pub fn call_contract(&self, call: ContractCall) -> Result<Vec<u8>> {
+        let tx = Transaction::ExecuteFunction {
+            sender: format!("0x{}", hex::encode(call.sender.to_vec())),
+            module: call.module_address(),
+            function: call.function.clone(),
+            type_args: call
+                .type_args
+                .iter()
+                .map(|t| format!("{}", t))
+                .collect(),
+            args: call.args.clone(),
+            gas_limit: call.gas_limit,
+            gas_price: call.gas_price,
+        };
+
+        let signed_tx = SignedTransaction::new(tx);
+        self.submit_transaction(signed_tx)
+    }
+
+    /// Get contract information
+    pub fn get_contract(&self, address: &str, module_name: &str) -> Option<ContractInfo> {
+        self.contract_registry
+            .read()
+            .unwrap()
+            .get_contract(address, module_name)
+            .cloned()
+    }
+
+    /// List all contracts deployed by an address
+    pub fn list_contracts_by_address(&self, address: &str) -> Vec<ContractInfo> {
+        self.contract_registry
+            .read()
+            .unwrap()
+            .get_contracts_by_address(address)
+            .into_iter()
+            .cloned()
+            .collect()
+    }
+
+    /// List all deployed contracts
+    pub fn list_all_contracts(&self) -> Vec<ContractInfo> {
+        self.contract_registry
+            .read()
+            .unwrap()
+            .list_all()
+            .into_iter()
+            .cloned()
+            .collect()
+    }
+
+    /// Search contracts by tag
+    pub fn search_contracts_by_tag(&self, tag: &str) -> Vec<ContractInfo> {
+        self.contract_registry
+            .read()
+            .unwrap()
+            .search_by_tag(tag)
+            .into_iter()
+            .cloned()
+            .collect()
+    }
+
+    /// Get total number of deployed contracts
+    pub fn get_contract_count(&self) -> usize {
+        self.contract_registry.read().unwrap().count()
     }
 
     /// Get block by height

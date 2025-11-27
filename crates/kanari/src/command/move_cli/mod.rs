@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod build;
+pub mod call;
 pub mod docgen;
 pub mod new;
+pub mod publish;
 pub mod test;
 
 use move_core_types::{account_address::AccountAddress, identifier::Identifier};
@@ -26,6 +28,10 @@ pub enum MoveCommand {
     Test(test::Test),
     /// Generate Move docs
     Docgen(docgen::Docgen),
+    /// Publish Move module to blockchain
+    Publish(publish::Publish),
+    /// Call Move function on blockchain
+    Call(call::Call),
 }
 
 impl MoveCommand {
@@ -46,6 +52,11 @@ impl MoveCommand {
                 let config = move_package::BuildConfig::default();
                 d.execute(None, config)
             }
+            MoveCommand::Publish(p) => {
+                let config = move_package::BuildConfig::default();
+                p.execute(None, config)
+            }
+            MoveCommand::Call(c) => c.execute(),
         }
     }
 }
