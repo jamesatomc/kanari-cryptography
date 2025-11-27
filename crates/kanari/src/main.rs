@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 use std::str::FromStr;
 use kanari_types::address::Address;
 use kanari_types::module_registry::ModuleRegistry;
-use kanari_move_runtime::BlockchainEngine;
+use kanari_move_runtime::{BlockchainEngine, SignedTransaction};
 use kanari_crypto::{
     keys::{generate_keypair, generate_mnemonic, keypair_from_mnemonic, CurveType},
     wallet::{list_wallet_files, load_wallet, save_wallet, Wallet},
@@ -160,7 +160,7 @@ fn main() -> Result<()> {
 
 		Commands::Transfer { from, to, amount, password } => {
 			// Load sender wallet to verify ownership
-			let _wallet = load_wallet(&from, &password)
+			let wallet = load_wallet(&from, &password)
 				.context("Failed to load sender wallet")?;
 
 			println!("💸 Transferring Kanari tokens...");
@@ -177,7 +177,7 @@ fn main() -> Result<()> {
 			let engine = BlockchainEngine::new()
 				.context("Failed to initialize blockchain engine")?;
 
-			// Submit transfer transaction with gas
+			// Create and sign transaction
 			let tx = kanari_move_runtime::Transaction::new_transfer(
 				from.clone(),
 				to.clone(),
@@ -187,7 +187,13 @@ fn main() -> Result<()> {
 			println!("  Gas Limit: {}", tx.gas_limit());
 			println!("  Gas Price: {} Mist/gas", tx.gas_price());
 
-			let tx_hash = engine.submit_transaction(tx)
+			// Sign transaction with wallet private key
+			let mut signed_tx = SignedTransaction::new(tx);
+			signed_tx.sign(&wallet.private_key, wallet.curve_type)
+				.context("Failed to sign transaction")?;
+			println!("  🔒 Transaction signed");
+
+			let tx_hash = engine.submit_transaction(signed_tx)
 				.context("Failed to submit transaction")?;
 
 			println!("  ✅ Transaction submitted: {}", hex::encode(&tx_hash[..16]));

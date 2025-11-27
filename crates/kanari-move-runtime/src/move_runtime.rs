@@ -9,9 +9,10 @@ use move_core_types::language_storage::{ModuleId, TypeTag};
 use move_vm_runtime::move_vm::MoveVM;
 use move_vm_test_utils::InMemoryStorage;
 use move_vm_types::gas::UnmeteredGasMeter;
-
+use move_core_types::effects::Op as MoveOp;
 
 use crate::move_vm_state::MoveVMState;
+use crate::changeset::ChangeSet;
 
 /// Simple runtime wrapper around `move-vm` for executing functions and publishing modules.
 pub struct MoveRuntime {
@@ -32,8 +33,8 @@ impl MoveRuntime {
 	}
 
 	/// Publish a module (bytes) with the given sender address.
-	/// The module is applied to the in-memory storage and persisted to RocksDB.
-	pub fn publish_module(&mut self, module_bytes: Vec<u8>, sender: AccountAddress) -> Result<()> {
+	/// Returns ChangeSet containing the module addition and any resource changes from Move VM.
+	pub fn publish_module(&mut self, module_bytes: Vec<u8>, sender: AccountAddress) -> Result<ChangeSet> {
 		let storage_clone = self.storage.clone();
 		let mut session = self.vm.new_session(storage_clone);
 		let mut gas = UnmeteredGasMeter;
@@ -43,11 +44,11 @@ impl MoveRuntime {
 			.map_err(|e| anyhow::anyhow!(format!("publish error: {:?}", e)))?;
 
 		let (res, new_storage) = session.finish();
-		let (changeset, _events) = res.map_err(|e| anyhow::anyhow!(format!("finish error: {:?}", e)))?;
+		let (move_changeset, events) = res.map_err(|e| anyhow::anyhow!(format!("finish error: {:?}", e)))?;
 
 		let mut storage = new_storage;
 		storage
-			.apply(changeset)
+			.apply(move_changeset.clone())
 			.map_err(|e| anyhow::anyhow!(format!("apply error: {:?}", e)))?;
 
 		// update our runtime storage
@@ -59,7 +60,15 @@ impl MoveRuntime {
 		let module_id = compiled.self_id();
 		self.state.save_module(&module_id, &module_bytes)?;
 
-		Ok(())
+		// Create ChangeSet from Move VM changeset
+		let mut cs = ChangeSet::new();
+		cs.publish_module(sender, module_id.name().to_string());
+		
+		// Parse Move VM changeset and events
+		self.parse_move_changeset(&move_changeset, &mut cs);
+		self.parse_move_events(&events, &mut cs);
+		
+		Ok(cs)
 	}
 
 	/// Publish a bundle of modules atomically. This helps resolving inter-module dependencies.
@@ -114,7 +123,7 @@ impl MoveRuntime {
 						let sender = AccountAddress::from_hex_literal(&format!("0x{}", mod_id.address().short_str_lossless())).unwrap_or(mod_id.address().clone());
 						let res = self.publish_module(bytes.clone(), sender);
 						match res {
-							Ok(()) => made_progress = true,
+							Ok(_changeset) => made_progress = true,
 							Err(e) => {
 								last_err = Some(e);
 								// push back for another attempt later
@@ -138,13 +147,14 @@ impl MoveRuntime {
 
 	/// Execute an entry function. `type_args` are Move `TypeTag`s and `args` are serialized
 	/// arguments as Vec<u8> (Move simple-serialized values).
+	/// Returns ChangeSet containing all state changes from Move VM execution.
 	pub fn execute_entry_function(
 		&mut self,
 		module_id: &ModuleId,
 		function_name: &str,
 		type_args: Vec<TypeTag>,
 		args: Vec<Vec<u8>>,
-	) -> Result<()> {
+	) -> Result<ChangeSet> {
 		let storage_clone = self.storage.clone();
 		let mut session = self.vm.new_session(storage_clone);
 		let mut gas = UnmeteredGasMeter;
@@ -165,15 +175,101 @@ impl MoveRuntime {
 			.map_err(|e| anyhow::anyhow!(format!("exec error: {:?}", e)))?;
 
 		let (res, new_storage) = session.finish();
-		let (changeset, _events) = res.map_err(|e| anyhow::anyhow!(format!("finish error: {:?}", e)))?;
+		let (move_changeset, events) = res.map_err(|e| anyhow::anyhow!(format!("finish error: {:?}", e)))?;
 
 		let mut storage = new_storage;
 		storage
-			.apply(changeset)
+			.apply(move_changeset.clone())
 			.map_err(|e| anyhow::anyhow!(format!("apply error: {:?}", e)))?;
 
 		self.storage = storage;
-		Ok(())
+		
+		// Create ChangeSet from Move VM execution
+		let mut cs = ChangeSet::new();
+		
+		// Parse Move VM changeset and events
+		self.parse_move_changeset(&move_changeset, &mut cs);
+		self.parse_move_events(&events, &mut cs);
+		
+		Ok(cs)
+	}
+
+	/// Parse Move VM ChangeSet and extract state changes into Kanari ChangeSet
+	/// This converts Move VM's canonical state changes into our domain model
+	fn parse_move_changeset(&self, move_cs: &move_core_types::effects::ChangeSet, kanari_cs: &mut ChangeSet) {
+		for (addr, account_changes) in move_cs.accounts() {
+			// Process module changes
+			for (module_name, op) in account_changes.modules() {
+				match op {
+					MoveOp::New(_bytes) | MoveOp::Modify(_bytes) => {
+						// Module published or updated
+						kanari_cs.publish_module(*addr, module_name.to_string());
+					}
+					MoveOp::Delete => {
+						// Module deletion (rare, but possible)
+						eprintln!("Warning: Module deletion detected for {}::{}", addr, module_name);
+					}
+				}
+			}
+
+			// Process resource changes
+			for (struct_tag, op) in account_changes.resources() {
+				match op {
+					MoveOp::New(bytes) | MoveOp::Modify(bytes) => {
+						// Try to parse balance changes from Coin/Balance resources
+						// Format: 0xADDR::coin::Coin<0xADDR::kanari::KANARI>
+						if self.is_balance_resource(struct_tag) {
+							if let Some(balance) = self.extract_balance_from_bytes(bytes) {
+								// Note: This is a simplified approach
+								// In production, you'd track the delta by comparing with previous value
+								eprintln!("Balance resource changed for {}: {} (type: {})", 
+									addr, balance, struct_tag);
+							}
+						}
+					}
+					MoveOp::Delete => {
+						// Resource deletion
+						eprintln!("Resource deleted for {}: {}", addr, struct_tag);
+					}
+				}
+			}
+		}
+	}
+
+	/// Check if struct tag represents a balance/coin resource
+	fn is_balance_resource(&self, struct_tag: &move_core_types::language_storage::StructTag) -> bool {
+		// Common patterns: Coin<T>, Balance<T>, Account<T>
+		let name = struct_tag.name.as_str();
+		name == "Coin" || name == "Balance" || name == "Account"
+	}
+
+	/// Extract u64 balance from Move BCS-encoded bytes
+	/// This is a simplified parser - production code would use proper BCS deserialization
+	fn extract_balance_from_bytes(&self, bytes: &[u8]) -> Option<u64> {
+		// Simple u64 BCS encoding: little-endian 8 bytes
+		// In real implementation, parse full struct with bcs::from_bytes
+		if bytes.len() >= 8 {
+			let balance_bytes: [u8; 8] = bytes[0..8].try_into().ok()?;
+			Some(u64::from_le_bytes(balance_bytes))
+		} else {
+			None
+		}
+	}
+
+	/// Parse Move VM events and add to Kanari ChangeSet
+	/// Events provide an audit trail of all state changes
+	fn parse_move_events(&self, events: &[move_core_types::effects::Event], kanari_cs: &mut ChangeSet) {
+		use crate::changeset::Event;
+		
+		for (key, sequence_number, type_tag, event_data) in events {
+			let kanari_event = Event {
+				key: key.clone(),
+				sequence_number: *sequence_number,
+				type_tag: format!("{}", type_tag),
+				event_data: event_data.clone(),
+			};
+			kanari_cs.add_event(kanari_event);
+		}
 	}
 }
 

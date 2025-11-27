@@ -2,6 +2,47 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
+use kanari_crypto::keys::CurveType;
+
+/// Signed transaction wrapper
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SignedTransaction {
+    pub transaction: Transaction,
+    pub signature: Option<Vec<u8>>,
+}
+
+impl SignedTransaction {
+    pub fn new(transaction: Transaction) -> Self {
+        Self {
+            transaction,
+            signature: None,
+        }
+    }
+
+    pub fn sign(&mut self, private_key: &str, curve_type: CurveType) -> Result<()> {
+        let tx_hash = self.transaction.hash();
+        let signature = kanari_crypto::sign_message(private_key, &tx_hash, curve_type)
+            .map_err(|e| anyhow::anyhow!("Failed to sign transaction: {}", e))?;
+        self.signature = Some(signature);
+        Ok(())
+    }
+
+    pub fn verify_signature(&self) -> Result<bool> {
+        let signature = self.signature.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Transaction not signed"))?;
+        
+        let tx_hash = self.transaction.hash();
+        let sender = self.transaction.sender_address();
+        
+        kanari_crypto::verify_signature(sender, &tx_hash, signature)
+            .map_err(|e| anyhow::anyhow!("Signature verification failed: {}", e))
+    }
+
+    pub fn hash(&self) -> Vec<u8> {
+        let serialized = serde_json::to_vec(self).unwrap();
+        Sha256::digest(&serialized).to_vec()
+    }
+}
 
 /// Block header containing metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,6 +119,16 @@ impl Transaction {
             Transaction::ExecuteFunction { sender, .. } => sender,
             Transaction::Transfer { from, .. } => from,
         }
+    }
+
+    pub fn sender_address(&self) -> &str {
+        self.sender()
+    }
+
+    pub fn sequence_number(&self) -> u64 {
+        // In real implementation, this should be part of Transaction struct
+        // For now, return 0 (will be validated against current state)
+        0
     }
 
     pub fn gas_limit(&self) -> u64 {

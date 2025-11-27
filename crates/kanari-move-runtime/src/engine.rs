@@ -1,11 +1,13 @@
-use crate::blockchain::{Block, Blockchain, Transaction};
+use crate::blockchain::{Block, Blockchain, Transaction, SignedTransaction};
 use crate::move_runtime::MoveRuntime;
 use crate::state::StateManager;
 use crate::gas::{GasMeter, GasOperation};
-use anyhow::Result;
+use crate::changeset::ChangeSet;
+use anyhow::{Context, Result};
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
+use kanari_types::address::Address as KanariAddress;
 
 /// Complete blockchain engine with Move VM integration
 pub struct BlockchainEngine {
@@ -30,24 +32,39 @@ impl BlockchainEngine {
         })
     }
 
-    /// Add transaction to pending pool
-    pub fn submit_transaction(&self, tx: Transaction) -> Result<Vec<u8>> {
-        let tx_hash = tx.hash();
+    /// Add signed transaction to pending pool after verifying signature
+    pub fn submit_transaction(&self, signed_tx: SignedTransaction) -> Result<Vec<u8>> {
+        // Verify signature before accepting transaction
+        if !signed_tx.verify_signature()? {
+            anyhow::bail!("Invalid transaction signature");
+        }
+        
+        let tx_hash = signed_tx.hash();
         let mut pending = self.pending_txs.write().unwrap();
-        pending.push(tx);
+        pending.push(signed_tx.transaction);
         Ok(tx_hash)
     }
 
-    /// Execute a single transaction
-    fn execute_transaction(&self, tx: &Transaction) -> Result<u64> {
-        // Create gas meter
+    /// Execute a single transaction and return ChangeSet
+    /// This is the correct way: Move VM produces ChangeSet, StateManager applies it
+    fn execute_transaction(&self, tx: &Transaction) -> Result<ChangeSet> {
+        // 1. Pre-flight validation: Check sequence number
+        let sender_addr = AccountAddress::from_hex_literal(tx.sender_address())?;
+        {
+            let state = self.state.read().unwrap();
+            state.validate_sequence(&sender_addr, tx.sequence_number())
+                .context("Sequence number validation failed")?;
+        }
+
+        // 2. Calculate gas and check balance
         let mut gas_meter = GasMeter::new(tx.gas_limit(), tx.gas_price());
+        let mut changeset = ChangeSet::new();
 
         match tx {
             Transaction::PublishModule {
                 sender,
                 module_bytes,
-                module_name,
+                module_name: _,
                 ..
             } => {
                 // Calculate gas for publishing
@@ -57,24 +74,61 @@ impl BlockchainEngine {
                 gas_meter.consume(gas_op.gas_units())?;
 
                 let addr = AccountAddress::from_hex_literal(sender)?;
-                let mut runtime = self.move_runtime.write().unwrap();
-                runtime.publish_module(module_bytes.clone(), addr)?;
-
-                // Update state
-                let mut state = self.state.write().unwrap();
-                let account = state.get_or_create_account(sender.clone());
-                account.add_module(module_name.clone());
-                account.increment_sequence();
-
-                // Deduct gas cost from sender
+                
+                // Check if sender has enough balance for gas
                 let gas_cost = gas_meter.total_cost();
-                if account.balance < gas_cost {
-                    anyhow::bail!("Insufficient balance for gas");
+                {
+                    let state = self.state.read().unwrap();
+                    let balance = state.get_account(&addr)
+                        .map(|acc| acc.balance)
+                        .unwrap_or(0);
+                    if balance < gas_cost {
+                        changeset.mark_failed(format!("Insufficient balance for gas: need {}, have {}", gas_cost, balance));
+                        
+                        // CRITICAL: Even pre-flight failures must deduct gas and increment sequence
+                        let sender_change = changeset.get_or_create_change(addr);
+                        sender_change.increment_sequence(); // Prevent replay
+                        sender_change.debit(gas_cost);
+                        
+                        let dao_addr = AccountAddress::from_hex_literal(KanariAddress::DAO_ADDRESS)?;
+                        changeset.collect_gas(dao_addr, gas_cost);
+                        changeset.set_gas_used(gas_meter.gas_used);
+                        return Ok(changeset);
+                    }
                 }
-                account.balance -= gas_cost;
 
-                // Send gas to DAO
-                state.collect_gas(gas_cost)?;
+                // Execute Move VM
+                let mut runtime = self.move_runtime.write().unwrap();
+                let move_changeset = match runtime.publish_module(module_bytes.clone(), addr) {
+                    Ok(cs) => cs,
+                    Err(e) => {
+                        changeset.mark_failed(format!("Module publish failed: {}", e));
+                        
+                        // CRITICAL: Even for failed transactions, deduct gas and increment sequence
+                        let sender_change = changeset.get_or_create_change(addr);
+                        sender_change.increment_sequence(); // Prevent replay
+                        sender_change.debit(gas_cost);
+                        
+                        let dao_addr = AccountAddress::from_hex_literal(KanariAddress::DAO_ADDRESS)?;
+                        changeset.collect_gas(dao_addr, gas_cost);
+                        changeset.set_gas_used(gas_meter.gas_used);
+                        return Ok(changeset);
+                    }
+                };
+
+                // Merge Move VM ChangeSet with gas/sequence changes
+                changeset.merge(move_changeset);
+                
+                // CRITICAL: Increment sequence and deduct gas for successful transaction
+                let sender_change = changeset.get_or_create_change(addr);
+                sender_change.increment_sequence(); // Prevent replay attacks
+                sender_change.debit(gas_cost);
+                
+                // Credit gas to DAO
+                let dao_addr = AccountAddress::from_hex_literal(KanariAddress::DAO_ADDRESS)?;
+                changeset.collect_gas(dao_addr, gas_cost);
+                
+                changeset.set_gas_used(gas_meter.gas_used);
             }
 
             Transaction::ExecuteFunction {
@@ -89,10 +143,36 @@ impl BlockchainEngine {
                 let gas_op = GasOperation::ExecuteFunction { complexity: 1 };
                 gas_meter.consume(gas_op.gas_units())?;
 
+                let sender_addr = AccountAddress::from_hex_literal(sender)?;
+                let gas_cost = gas_meter.total_cost();
+                
+                // Check balance
+                {
+                    let state = self.state.read().unwrap();
+                    let balance = state.get_account(&sender_addr)
+                        .map(|acc| acc.balance)
+                        .unwrap_or(0);
+                    if balance < gas_cost {
+                        changeset.mark_failed(format!("Insufficient balance for gas: need {}, have {}", gas_cost, balance));
+                        
+                        // CRITICAL: Even pre-flight failures must deduct gas and increment sequence
+                        let sender_change = changeset.get_or_create_change(sender_addr);
+                        sender_change.increment_sequence(); // Prevent replay
+                        sender_change.debit(gas_cost);
+                        
+                        let dao_addr = AccountAddress::from_hex_literal(KanariAddress::DAO_ADDRESS)?;
+                        changeset.collect_gas(dao_addr, gas_cost);
+                        changeset.set_gas_used(gas_meter.gas_used);
+                        return Ok(changeset);
+                    }
+                }
+
                 // Parse module ID
                 let parts: Vec<&str> = module.split("::").collect();
                 if parts.len() != 2 {
-                    anyhow::bail!("Invalid module format. Expected: address::module");
+                    changeset.mark_failed("Invalid module format. Expected: address::module".to_string());
+                    changeset.set_gas_used(0);
+                    return Ok(changeset);
                 }
 
                 let addr = AccountAddress::from_hex_literal(parts[0])?;
@@ -113,22 +193,38 @@ impl BlockchainEngine {
                     })
                     .collect();
 
+                // Execute Move VM
                 let mut runtime = self.move_runtime.write().unwrap();
-                runtime.execute_entry_function(&module_id, function, type_tags, args.clone())?;
+                let move_changeset = match runtime.execute_entry_function(&module_id, function, type_tags, args.clone()) {
+                    Ok(cs) => cs,
+                    Err(e) => {
+                        changeset.mark_failed(format!("Function execution failed: {}", e));
+                        
+                        // CRITICAL: Even for failed transactions, deduct gas and increment sequence
+                        let sender_change = changeset.get_or_create_change(sender_addr);
+                        sender_change.increment_sequence(); // Prevent replay
+                        sender_change.debit(gas_cost);
+                        
+                        let dao_addr = AccountAddress::from_hex_literal(KanariAddress::DAO_ADDRESS)?;
+                        changeset.collect_gas(dao_addr, gas_cost);
+                        changeset.set_gas_used(gas_meter.gas_used);
+                        return Ok(changeset);
+                    }
+                };
 
-                // Update state and deduct gas
-                let mut state = self.state.write().unwrap();
-                let account = state.get_or_create_account(sender.clone());
-                account.increment_sequence();
+                // Merge Move VM ChangeSet with gas/sequence changes
+                changeset.merge(move_changeset);
 
-                let gas_cost = gas_meter.total_cost();
-                if account.balance < gas_cost {
-                    anyhow::bail!("Insufficient balance for gas");
-                }
-                account.balance -= gas_cost;
+                // Build ChangeSet: increment sequence
+                let sender_change = changeset.get_or_create_change(sender_addr);
+                sender_change.increment_sequence();
+                sender_change.debit(gas_cost);
 
-                // Send gas to DAO
-                state.collect_gas(gas_cost)?;
+                // Credit gas to DAO
+                let dao_addr = AccountAddress::from_hex_literal(KanariAddress::DAO_ADDRESS)?;
+                changeset.collect_gas(dao_addr, gas_cost);
+                
+                changeset.set_gas_used(gas_meter.gas_used);
             }
 
             Transaction::Transfer { from, to, amount, .. } => {
@@ -136,44 +232,59 @@ impl BlockchainEngine {
                 let gas_op = GasOperation::Transfer;
                 gas_meter.consume(gas_op.gas_units())?;
 
-                let mut state = self.state.write().unwrap();
-
-                // Check if sender has enough for transfer + gas
+                let from_addr = AccountAddress::from_hex_literal(from)?;
+                let to_addr = AccountAddress::from_hex_literal(to)?;
                 let gas_cost = gas_meter.total_cost();
                 let total_required = amount.saturating_add(gas_cost);
 
-                let sender_balance = state
-                    .get_account(from)
-                    .map(|acc| acc.balance)
-                    .unwrap_or(0);
-
-                if sender_balance < total_required {
-                    anyhow::bail!(
-                        "Insufficient balance: need {} (amount: {}, gas: {}) but have {}",
-                        total_required,
-                        amount,
-                        gas_cost,
-                        sender_balance
-                    );
+                // Check balance
+                {
+                    let state = self.state.read().unwrap();
+                    let balance = state.get_account(&from_addr)
+                        .map(|acc| acc.balance)
+                        .unwrap_or(0);
+                    if balance < total_required {
+                        changeset.mark_failed(format!(
+                            "Insufficient balance: need {} (amount: {}, gas: {}) but have {}",
+                            total_required, amount, gas_cost, balance
+                        ));
+                        
+                        // CRITICAL: Even if balance check fails, deduct gas and increment sequence
+                        let sender_change = changeset.get_or_create_change(from_addr);
+                        sender_change.increment_sequence(); // Prevent replay
+                        sender_change.debit(gas_cost); // User still pays for attempt
+                        
+                        let dao_addr = AccountAddress::from_hex_literal(KanariAddress::DAO_ADDRESS)?;
+                        changeset.collect_gas(dao_addr, gas_cost);
+                        changeset.set_gas_used(gas_meter.gas_used);
+                        return Ok(changeset);
+                    }
                 }
 
-                // Perform transfer
-                state.transfer(from, to, *amount)?;
+                // Build ChangeSet: transfer
+                changeset.transfer(from_addr, to_addr, *amount);
+                
+                // CRITICAL: Increment sequence and deduct gas for successful transfer
+                let sender_change = changeset.get_or_create_change(from_addr);
+                sender_change.increment_sequence(); // Prevent replay attacks
+                sender_change.debit(gas_cost);
 
-                // Deduct gas from sender
-                if let Some(sender) = state.accounts.get_mut(from) {
-                    sender.balance -= gas_cost;
-                }
-
-                // Send gas to DAO
-                state.collect_gas(gas_cost)?;
+                // Credit gas to DAO
+                let dao_addr = AccountAddress::from_hex_literal(KanariAddress::DAO_ADDRESS)?;
+                changeset.collect_gas(dao_addr, gas_cost);
+                
+                changeset.set_gas_used(gas_meter.gas_used);
             }
         }
 
-        Ok(gas_meter.gas_used)
+        Ok(changeset)
     }
 
     /// Mine/produce a new block with pending transactions
+    /// Now uses ChangeSet pattern: execute -> collect ChangeSets -> apply atomically
+    /// 
+    /// CRITICAL: ALL ChangeSets (both successful and failed) are applied to state.
+    /// Failed transactions still deduct gas and increment sequence to prevent spam and replay attacks.
     pub fn produce_block(&self) -> Result<BlockInfo> {
         let mut pending = self.pending_txs.write().unwrap();
         
@@ -184,20 +295,40 @@ impl BlockchainEngine {
         let transactions = pending.drain(..).collect::<Vec<_>>();
         let tx_count = transactions.len();
 
-        // Execute all transactions
+        // Execute all transactions and collect ALL ChangeSets (success + failed)
+        let mut all_changesets = Vec::new();
         let mut executed = 0;
         let mut failed = 0;
         let mut _total_gas_used = 0u64;
+        
         for tx in &transactions {
             match self.execute_transaction(tx) {
-                Ok(gas_used) => {
-                    executed += 1;
-                    _total_gas_used += gas_used;
+                Ok(changeset) => {
+                    if changeset.success {
+                        executed += 1;
+                    } else {
+                        eprintln!("Transaction failed: {:?}", changeset.error_message);
+                        failed += 1;
+                    }
+                    // CRITICAL: Collect ALL ChangeSets regardless of success status
+                    // Failed transactions contain gas deduction and sequence increment
+                    _total_gas_used += changeset.gas_used;
+                    all_changesets.push(changeset);
                 }
                 Err(e) => {
-                    eprintln!("Transaction execution failed: {:?}", e);
+                    eprintln!("Transaction execution error: {:?}", e);
                     failed += 1;
+                    // No ChangeSet to apply if execute_transaction failed before creating one
                 }
+            }
+        }
+
+        // Apply ALL ChangeSets atomically (both successful and failed)
+        {
+            let mut state = self.state.write().unwrap();
+            for changeset in &all_changesets {
+                state.apply_changeset(changeset)
+                    .context("Failed to apply changeset to state")?;
             }
         }
 
@@ -239,11 +370,11 @@ impl BlockchainEngine {
     /// Get account info
     pub fn get_account_info(&self, address: &str) -> Option<AccountInfo> {
         let state = self.state.read().unwrap();
-        state.get_account(address).map(|acc| AccountInfo {
-            address: acc.address.clone(),
+        state.get_account_by_hex(address).map(|acc| AccountInfo {
+            address: format!("{:#x}", acc.address),
             balance: acc.balance,
             sequence_number: acc.sequence_number,
-            modules: acc.modules.clone(),
+            modules: acc.modules.iter().cloned().collect(),
         })
     }
 
@@ -310,14 +441,24 @@ mod tests {
 
     #[test]
     fn test_submit_transaction() {
+        use kanari_crypto::keys::{generate_keypair, CurveType};
+        
         let engine = BlockchainEngine::new().unwrap();
+        
+        // Generate keypair and use its address as sender
+        let keypair = generate_keypair(CurveType::Ed25519).unwrap();
+        
         let tx = Transaction::new_transfer(
-            "0x1".to_string(),
+            keypair.address.clone(),
             "0x2".to_string(),
             1000,
         );
 
-        engine.submit_transaction(tx).unwrap();
+        // Sign transaction with matching keypair
+        let mut signed_tx = SignedTransaction::new(tx);
+        signed_tx.sign(&keypair.private_key, CurveType::Ed25519).unwrap();
+
+        engine.submit_transaction(signed_tx).unwrap();
         let stats = engine.get_stats();
         assert_eq!(stats.pending_transactions, 1);
     }

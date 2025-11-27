@@ -1,31 +1,35 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use move_core_types::account_address::AccountAddress;
 use kanari_types::address::Address as KanariAddress;
+use crate::changeset::ChangeSet;
 
 /// Account state in the blockchain
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Account {
-    pub address: String,
+    pub address: AccountAddress,
     pub balance: u64,
     pub sequence_number: u64,
-    pub modules: Vec<String>,
+    pub modules: HashSet<String>,
 }
 
 impl Account {
-    pub fn new(address: String, balance: u64) -> Self {
+    pub fn new(address: AccountAddress, balance: u64) -> Self {
         Self {
             address,
             balance,
             sequence_number: 0,
-            modules: vec![],
+            modules: HashSet::new(),
         }
     }
 
     pub fn add_module(&mut self, module_name: String) {
-        if !self.modules.contains(&module_name) {
-            self.modules.push(module_name);
-        }
+        self.modules.insert(module_name);
+    }
+
+    pub fn to_hex_string(&self) -> String {
+        format!("{:#x}", self.address)
     }
 
     pub fn increment_sequence(&mut self) {
@@ -34,9 +38,10 @@ impl Account {
 }
 
 /// Global state manager for accounts and balances
+/// This is a pure data layer that applies ChangeSet from Move VM execution
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateManager {
-    pub accounts: HashMap<String, Account>,
+    pub accounts: HashMap<AccountAddress, Account>,
     pub total_supply: u64,
 }
 
@@ -51,30 +56,17 @@ impl StateManager {
         const TOTAL_SUPPLY_MIST: u64 = 10_000_000_000_000_000_000;
         
         // Initialize system accounts
-        accounts.insert(
-            KanariAddress::GENESIS_ADDRESS.to_string(),
-            Account::new(KanariAddress::GENESIS_ADDRESS.to_string(), 0),
-        );
-        accounts.insert(
-            KanariAddress::STD_ADDRESS.to_string(),
-            Account::new(KanariAddress::STD_ADDRESS.to_string(), 0),
-        );
-        accounts.insert(
-            KanariAddress::KANARI_SYSTEM_ADDRESS.to_string(),
-            Account::new(KanariAddress::KANARI_SYSTEM_ADDRESS.to_string(), 0),
-        );
+        let genesis_addr = AccountAddress::from_hex_literal(KanariAddress::GENESIS_ADDRESS).unwrap();
+        let std_addr = AccountAddress::from_hex_literal(KanariAddress::STD_ADDRESS).unwrap();
+        let system_addr = AccountAddress::from_hex_literal(KanariAddress::KANARI_SYSTEM_ADDRESS).unwrap();
+        let dao_addr = AccountAddress::from_hex_literal(KanariAddress::DAO_ADDRESS).unwrap();
+        let dev_addr = AccountAddress::from_hex_literal(KanariAddress::DEV_ADDRESS).unwrap();
 
-        // DAO address receives all gas fees
-        accounts.insert(
-            KanariAddress::DAO_ADDRESS.to_string(),
-            Account::new(KanariAddress::DAO_ADDRESS.to_string(), 0),
-        );
-
-        // Dev address receives entire initial supply
-        accounts.insert(
-            KanariAddress::DEV_ADDRESS.to_string(),
-            Account::new(KanariAddress::DEV_ADDRESS.to_string(), TOTAL_SUPPLY_MIST),
-        );
+        accounts.insert(genesis_addr, Account::new(genesis_addr, 0));
+        accounts.insert(std_addr, Account::new(std_addr, 0));
+        accounts.insert(system_addr, Account::new(system_addr, 0));
+        accounts.insert(dao_addr, Account::new(dao_addr, 0));
+        accounts.insert(dev_addr, Account::new(dev_addr, TOTAL_SUPPLY_MIST));
 
         Self {
             accounts,
@@ -82,21 +74,120 @@ impl StateManager {
         }
     }
 
-    pub fn get_or_create_account(&mut self, address: String) -> &mut Account {
+    pub fn get_or_create_account(&mut self, address: AccountAddress) -> &mut Account {
         self.accounts
-            .entry(address.clone())
+            .entry(address)
             .or_insert_with(|| Account::new(address, 0))
     }
 
-    pub fn get_account(&self, address: &str) -> Option<&Account> {
+    pub fn get_account(&self, address: &AccountAddress) -> Option<&Account> {
         self.accounts.get(address)
     }
 
+    pub fn get_account_by_hex(&self, hex_address: &str) -> Option<&Account> {
+        if let Ok(addr) = AccountAddress::from_hex_literal(hex_address) {
+            self.accounts.get(&addr)
+        } else {
+            None
+        }
+    }
+
+    /// Apply ChangeSet from Move VM execution
+    /// This is the ONLY way to modify state - all changes must come from Move VM
+    /// 
+    /// CRITICAL: This method applies ALL changes in the ChangeSet, regardless of 
+    /// the 'success' status. Failed transactions MUST still deduct gas fees and 
+    /// increment sequence numbers to prevent replay attacks.
+    /// 
+    /// The BlockchainEngine is responsible for ensuring that failed transaction 
+    /// ChangeSets only contain necessary changes (gas deduction, sequence increment).
+    pub fn apply_changeset(&mut self, changeset: &ChangeSet) -> Result<()> {
+        // Track total supply change (for mint/burn operations)
+        let mut supply_delta: i64 = 0;
+
+        for (address, change) in &changeset.account_changes {
+            let account = self.get_or_create_account(*address);
+
+            // Apply balance delta
+            if change.balance_delta > 0 {
+                let amount = change.balance_delta as u64;
+                account.balance = account
+                    .balance
+                    .checked_add(amount)
+                    .ok_or_else(|| anyhow::anyhow!("Balance overflow"))?;
+                supply_delta += change.balance_delta;
+            } else if change.balance_delta < 0 {
+                let debit = (-change.balance_delta) as u64;
+                if account.balance < debit {
+                    anyhow::bail!(
+                        "Insufficient balance for address {:#x}: need {} but have {}",
+                        address,
+                        debit,
+                        account.balance
+                    );
+                }
+                account.balance -= debit;
+                supply_delta += change.balance_delta;
+            }
+
+            // Apply sequence number increment
+            account.sequence_number += change.sequence_increment;
+
+            // Apply module additions
+            for module_name in &change.modules_added {
+                account.add_module(module_name.clone());
+            }
+        }
+
+        // Update total supply if there was mint/burn (supply_delta != 0)
+        if supply_delta != 0 {
+            if supply_delta > 0 {
+                self.total_supply = self
+                    .total_supply
+                    .checked_add(supply_delta as u64)
+                    .ok_or_else(|| anyhow::anyhow!("Total supply overflow"))?;
+            } else {
+                let burn_amount = (-supply_delta) as u64;
+                if self.total_supply < burn_amount {
+                    anyhow::bail!("Cannot burn more than total supply");
+                }
+                self.total_supply -= burn_amount;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate transaction sequence number before execution
+    pub fn validate_sequence(&self, address: &AccountAddress, expected_sequence: u64) -> Result<()> {
+        if let Some(account) = self.get_account(address) {
+            if account.sequence_number != expected_sequence {
+                anyhow::bail!(
+                    "Sequence number mismatch for {:#x}: expected {}, got {}",
+                    address,
+                    account.sequence_number,
+                    expected_sequence
+                );
+            }
+        } else if expected_sequence != 0 {
+            anyhow::bail!(
+                "Account {:#x} does not exist, expected sequence must be 0",
+                address
+            );
+        }
+        Ok(())
+    }
+
+    /// Legacy direct transfer - DEPRECATED, use apply_changeset instead
+    /// Kept for backward compatibility only
+    #[deprecated(note = "Use apply_changeset with Move VM execution instead")]
     pub fn transfer(&mut self, from: &str, to: &str, amount: u64) -> Result<()> {
-        // Check sender exists and has sufficient balance
+        let from_addr = AccountAddress::from_hex_literal(from)?;
+        let to_addr = AccountAddress::from_hex_literal(to)?;
+
         let sender_balance = self
             .accounts
-            .get(from)
+            .get(&from_addr)
             .map(|acc| acc.balance)
             .ok_or_else(|| anyhow::anyhow!("Sender account not found"))?;
 
@@ -104,29 +195,33 @@ impl StateManager {
             anyhow::bail!("Insufficient balance");
         }
 
-        // Deduct from sender
-        if let Some(sender) = self.accounts.get_mut(from) {
+        if let Some(sender) = self.accounts.get_mut(&from_addr) {
             sender.balance -= amount;
             sender.increment_sequence();
         }
 
-        // Add to receiver
-        let receiver = self.get_or_create_account(to.to_string());
+        let receiver = self.get_or_create_account(to_addr);
         receiver.balance += amount;
 
         Ok(())
     }
 
+    /// Legacy mint - DEPRECATED
+    #[deprecated(note = "Use apply_changeset with Move VM execution instead")]
     pub fn mint(&mut self, to: &str, amount: u64) -> Result<()> {
-        let account = self.get_or_create_account(to.to_string());
+        let to_addr = AccountAddress::from_hex_literal(to)?;
+        let account = self.get_or_create_account(to_addr);
         account.balance += amount;
         Ok(())
     }
 
+    /// Legacy burn - DEPRECATED
+    #[deprecated(note = "Use apply_changeset with Move VM execution instead")]
     pub fn burn(&mut self, from: &str, amount: u64) -> Result<()> {
+        let from_addr = AccountAddress::from_hex_literal(from)?;
         let account = self
             .accounts
-            .get_mut(from)
+            .get_mut(&from_addr)
             .ok_or_else(|| anyhow::anyhow!("Account not found"))?;
 
         if account.balance < amount {
@@ -138,10 +233,14 @@ impl StateManager {
     }
 
     pub fn get_balance(&self, address: &str) -> u64 {
-        self.accounts
-            .get(address)
-            .map(|acc| acc.balance)
-            .unwrap_or(0)
+        if let Ok(addr) = AccountAddress::from_hex_literal(address) {
+            self.accounts
+                .get(&addr)
+                .map(|acc| acc.balance)
+                .unwrap_or(0)
+        } else {
+            0
+        }
     }
 
     pub fn account_count(&self) -> usize {
@@ -154,10 +253,12 @@ impl StateManager {
         Sha256::digest(&serialized).to_vec()
     }
 
-    /// Transfer gas fees to DAO address
+    /// Collect gas fees - DEPRECATED, should be part of ChangeSet
+    /// Gas collection should be included in the ChangeSet from Move VM execution
+    #[deprecated(note = "Gas fees should be included in ChangeSet, not applied separately")]
     pub fn collect_gas(&mut self, gas_amount: u64) -> Result<()> {
-        use kanari_types::address::Address as KanariAddress;
-        let dao = self.get_or_create_account(KanariAddress::DAO_ADDRESS.to_string());
+        let dao_addr = AccountAddress::from_hex_literal(KanariAddress::DAO_ADDRESS)?;
+        let dao = self.get_or_create_account(dao_addr);
         dao.balance += gas_amount;
         Ok(())
     }
@@ -176,21 +277,69 @@ mod tests {
     #[test]
     fn test_state_manager_creation() {
         let state = StateManager::new();
-        assert_eq!(state.accounts.len(), 2); // 0x1 and 0x2
-        assert!(state.accounts.contains_key("0x1"));
-        assert!(state.accounts.contains_key("0x2"));
+        assert_eq!(state.accounts.len(), 5); // Genesis, Std, System, DAO, Dev
+        let dev_addr = AccountAddress::from_hex_literal(KanariAddress::DEV_ADDRESS).unwrap();
+        assert!(state.accounts.contains_key(&dev_addr));
     }
 
     #[test]
     fn test_get_or_create_account() {
         let mut state = StateManager::new();
-        let account = state.get_or_create_account("0x123".to_string());
-        assert_eq!(account.address, "0x123");
+        let addr = AccountAddress::from_hex_literal("0x123").unwrap();
+        let account = state.get_or_create_account(addr);
+        assert_eq!(account.address, addr);
         assert_eq!(account.balance, 0);
     }
 
     #[test]
-    fn test_transfer() {
+    fn test_apply_changeset_transfer() {
+        let mut state = StateManager::new();
+        let from = AccountAddress::from_hex_literal("0x1").unwrap();
+        let to = AccountAddress::from_hex_literal("0x2").unwrap();
+
+        // Give initial balance to sender
+        state.get_or_create_account(from).balance = 1000;
+
+        // Create changeset for transfer
+        let mut cs = ChangeSet::new();
+        cs.transfer(from, to, 500);
+
+        state.apply_changeset(&cs).unwrap();
+
+        assert_eq!(state.get_account(&from).unwrap().balance, 500);
+        assert_eq!(state.get_account(&to).unwrap().balance, 500);
+    }
+
+    #[test]
+    fn test_apply_changeset_mint() {
+        let mut state = StateManager::new();
+        let to = AccountAddress::from_hex_literal("0x1").unwrap();
+
+        let mut cs = ChangeSet::new();
+        cs.mint(to, 1000);
+
+        state.apply_changeset(&cs).unwrap();
+        assert_eq!(state.get_account(&to).unwrap().balance, 1000);
+    }
+
+    #[test]
+    fn test_apply_changeset_module_publish() {
+        let mut state = StateManager::new();
+        let publisher = AccountAddress::from_hex_literal("0x2").unwrap();
+
+        let mut cs = ChangeSet::new();
+        cs.publish_module(publisher, "kanari".to_string());
+
+        state.apply_changeset(&cs).unwrap();
+
+        let account = state.get_account(&publisher).unwrap();
+        assert!(account.modules.contains("kanari"));
+        assert_eq!(account.sequence_number, 1);
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn test_legacy_transfer() {
         let mut state = StateManager::new();
         state.mint("0x1", 1000).unwrap();
         state.transfer("0x1", "0x2", 500).unwrap();
@@ -200,31 +349,123 @@ mod tests {
     }
 
     #[test]
-    fn test_insufficient_balance() {
+    fn test_total_supply_tracking() {
         let mut state = StateManager::new();
-        state.mint("0x1", 100).unwrap();
+        let initial_supply = state.total_supply;
         
-        let result = state.transfer("0x1", "0x2", 200);
-        assert!(result.is_err());
+        // Mint increases supply
+        let to = AccountAddress::from_hex_literal("0x123").unwrap();
+        let mut cs = ChangeSet::new();
+        cs.mint(to, 1000);
+        state.apply_changeset(&cs).unwrap();
+        
+        assert_eq!(state.total_supply, initial_supply + 1000);
+        
+        // Burn decreases supply
+        let mut cs = ChangeSet::new();
+        cs.burn(to, 500);
+        state.apply_changeset(&cs).unwrap();
+        
+        assert_eq!(state.total_supply, initial_supply + 500);
     }
 
     #[test]
-    fn test_mint_and_burn() {
-        let mut state = StateManager::new();
-        state.mint("0x1", 1000).unwrap();
-        assert_eq!(state.get_balance("0x1"), 1000);
-
-        state.burn("0x1", 300).unwrap();
-        assert_eq!(state.get_balance("0x1"), 700);
+    fn test_sequence_validation() {
+        let state = StateManager::new();
+        let addr = AccountAddress::from_hex_literal("0x1").unwrap();
+        
+        // Account exists with sequence 0
+        assert!(state.validate_sequence(&addr, 0).is_ok());
+        
+        // Wrong sequence should fail
+        assert!(state.validate_sequence(&addr, 1).is_err());
+        
+        // Non-existent account with sequence 0 should pass
+        let new_addr = AccountAddress::from_hex_literal("0x999").unwrap();
+        assert!(state.validate_sequence(&new_addr, 0).is_ok());
+        
+        // Non-existent account with non-zero sequence should fail
+        assert!(state.validate_sequence(&new_addr, 1).is_err());
     }
 
     #[test]
-    fn test_sequence_number() {
+    fn test_balance_overflow_protection() {
         let mut state = StateManager::new();
-        state.mint("0x1", 1000).unwrap();
-        state.transfer("0x1", "0x2", 100).unwrap();
+        let addr = AccountAddress::from_hex_literal("0x1").unwrap();
+        
+        // Set balance to near max
+        state.get_or_create_account(addr).balance = u64::MAX - 100;
+        
+        // Try to add more than available space
+        let mut cs = ChangeSet::new();
+        cs.mint(addr, 200);
+        
+        // Should fail with overflow error
+        assert!(state.apply_changeset(&cs).is_err());
+    }
 
-        let account = state.get_account("0x1").unwrap();
-        assert_eq!(account.sequence_number, 1);
+    #[test]
+    fn test_changeset_with_multiple_operations() {
+        let mut state = StateManager::new();
+        let from = AccountAddress::from_hex_literal("0x1").unwrap();
+        let to = AccountAddress::from_hex_literal("0x2").unwrap();
+        let dao = AccountAddress::from_hex_literal(KanariAddress::DAO_ADDRESS).unwrap();
+        
+        // Setup initial balance
+        state.get_or_create_account(from).balance = 1000;
+        
+        // Create changeset with transfer + gas collection
+        let mut cs = ChangeSet::new();
+        cs.transfer(from, to, 100);
+        cs.collect_gas(dao, 10); // Gas collected to DAO
+        cs.set_gas_used(10);
+        
+        // Apply changeset
+        state.apply_changeset(&cs).unwrap();
+        
+        // Verify: sender lost 100, receiver gained 100, DAO gained 10
+        assert_eq!(state.get_account(&from).unwrap().balance, 900);
+        assert_eq!(state.get_account(&to).unwrap().balance, 100);
+        assert_eq!(state.get_account(&dao).unwrap().balance, 10);
+        
+        // Verify sequence incremented for sender
+        assert_eq!(state.get_account(&from).unwrap().sequence_number, 1);
+    }
+
+    #[test]
+    fn test_failed_transaction_gas_deduction() {
+        // CRITICAL TEST: Failed transactions MUST still deduct gas
+        let mut state = StateManager::new();
+        let sender = AccountAddress::from_hex_literal("0x123").unwrap();
+        let dao = AccountAddress::from_hex_literal(KanariAddress::DAO_ADDRESS).unwrap();
+        
+        // Setup sender with 1000 balance
+        state.get_or_create_account(sender).balance = 1000;
+        
+        // Create a FAILED transaction changeset (success: false)
+        // But it should still contain gas deduction and sequence increment
+        let mut cs = ChangeSet::new();
+        cs.mark_failed("Execution failed: out of gas".to_string());
+        
+        // Even though transaction failed, gas is charged
+        let gas_cost = 50u64;
+        let sender_change = cs.get_or_create_change(sender);
+        sender_change.debit(gas_cost); // Deduct gas from sender
+        sender_change.increment_sequence(); // Increment sequence to prevent replay
+        
+        cs.collect_gas(dao, gas_cost); // DAO receives gas
+        cs.set_gas_used(gas_cost);
+        
+        // Apply the FAILED changeset
+        state.apply_changeset(&cs).unwrap();
+        
+        // ASSERTIONS: Even though transaction failed, gas was deducted
+        assert_eq!(state.get_account(&sender).unwrap().balance, 950, 
+            "Failed transaction MUST deduct gas from sender");
+        assert_eq!(state.get_account(&dao).unwrap().balance, 50, 
+            "Failed transaction MUST credit gas to DAO");
+        assert_eq!(state.get_account(&sender).unwrap().sequence_number, 1, 
+            "Failed transaction MUST increment sequence to prevent replay");
     }
 }
+
