@@ -79,23 +79,13 @@ pub fn load_config() -> io::Result<Value> {
         None => return Ok(Value::Mapping(Mapping::new())), // No envs sequence, return empty
     };
 
-    if let Some(active_env_config) = envs
+    if envs
         .iter()
-        .find(|env| env.get("alias").and_then(|v| v.as_str()) == Some(active_env_str))
+        .any(|env| env.get("alias").and_then(|v| v.as_str()) == Some(active_env_str))
     {
         let mut config_map = Mapping::new();
 
-        let chain_id = match active_env_str {
-            "local" => "kari-local-001",
-            "dev" => "kari-dev-001",
-            "test" => "kari-testnet-001",
-            "main" => "kari-mainnet-001",
-            _ => "kari-testnet-001", // Default or consider error
-        };
-        config_map.insert(
-            Value::String("chain_id".to_string()),
-            Value::String(chain_id.to_string()),
-        );
+        // `chain_id` removed from generated config_map as requested.
 
         if let Some(addr) = kanari_config.get("active_address").and_then(|v| v.as_str()) {
             config_map.insert(
@@ -104,28 +94,7 @@ pub fn load_config() -> io::Result<Value> {
             );
         }
 
-        if let Some(rpc_url) = active_env_config.get("rpc").and_then(|v| v.as_str()) {
-            let rpc_port = if rpc_url.starts_with("http://127.0.0.1:")
-                || rpc_url.starts_with("http://localhost:")
-            {
-                rpc_url
-                    .split(':')
-                    .nth(2)
-                    .and_then(|p_str| p_str.parse::<u64>().ok())
-                    .unwrap_or(30030)
-            } else {
-                30030 // Default for remote or unparseable local
-            };
-            config_map.insert(
-                Value::String("rpc_port".to_string()),
-                Value::Number(serde_yaml::Number::from(rpc_port)),
-            );
-        } else {
-            config_map.insert(
-                Value::String("rpc_port".to_string()),
-                Value::Number(serde_yaml::Number::from(30030u64)),
-            ); // Default if rpc field is missing
-        }
+        // `rpc_port` removed from generated config_map as requested.
 
         return Ok(Value::Mapping(config_map));
     }
@@ -136,11 +105,6 @@ pub fn load_config() -> io::Result<Value> {
 /// Save configuration to kanari.yaml file
 pub fn save_config(config_to_save: &Value) -> io::Result<()> {
     let mut kanari_config = load_kanari_config().unwrap_or_else(|_| Value::Mapping(Mapping::new()));
-
-    let active_env_alias = match kanari_config.get("active_env").and_then(|v| v.as_str()) {
-        Some(alias) => alias.to_string(),
-        None => return Ok(()), // No active_env to update
-    };
 
     let config_to_save_map = match config_to_save.as_mapping() {
         Some(map) => map,
@@ -156,21 +120,7 @@ pub fn save_config(config_to_save: &Value) -> io::Result<()> {
             );
         }
 
-        // Update RPC URL in the active environment if "rpc_port" is in config_to_save
-        if let Some(envs) = kanari_config_map
-            .get_mut("envs")
-            .and_then(|v| v.as_sequence_mut())
-            && let Some(env_to_update) = envs
-                .iter_mut()
-                .find(|env| env.get("alias").and_then(|v| v.as_str()) == Some(&active_env_alias))
-            && let Some(rpc_port_val) = config_to_save_map.get("rpc_port").and_then(|v| v.as_u64())
-            && let Some(env_map_mut) = env_to_update.as_mapping_mut()
-        {
-            env_map_mut.insert(
-                Value::String("rpc".to_string()),
-                Value::String(format!("http://127.0.0.1:{}", rpc_port_val)),
-            );
-        }
+        // RPC updates removed per configuration changes.
 
         save_kanari_config(&Value::Mapping(kanari_config_map.clone()))?; // Clone because save_kanari_config takes &Value
     }

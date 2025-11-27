@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::*;
-use kanari_common::load_config;
+use kanari_common::load_kanari_config;
 use move_package::source_package::layout::SourcePackageLayout;
 use std::{
     fmt::Display,
-    fs::{File, create_dir_all},
+    fs::{create_dir_all, File},
     io::Write,
     path::{Path, PathBuf},
 };
@@ -32,11 +32,11 @@ pub struct New {
 
 impl New {
     fn get_address_from_config() -> Option<String> {
-        match load_config() {
+        match load_kanari_config() {
             Ok(config) => config
-                .get("address")
+                .get("active_address")
                 .and_then(|v| v.as_str())
-                .map(|s| s.trim_end_matches(".enc").to_string()),
+                .map(|s| s.to_string()),
             Err(_) => None,
         }
     }
