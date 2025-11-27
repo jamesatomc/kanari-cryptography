@@ -37,18 +37,18 @@ sha3 = "0.10"
 clap = { version = "4.5", features = ["derive"] }
 
 # Local dependencies
-kanari-crypto = { path = "../kanari-crypto" }
-kanari-types = { path = "../kanari-types" }
-kanari-move-runtime = { path = "../kanari-move-runtime" }
-kanari-rpc-client = { path = "../kanari-rpc-client" }
-kanari-rpc-api = { path = "../kanari-rpc-api" }
-kanari-common = { path = "../kanari-common" }
+kanari-crypto = { workspace = true }
+kanari-types = { workspace = true }
+kanari-move-runtime = { workspace = true }
+kanari-rpc-client = { workspace = true }
+kanari-rpc-api = { workspace = true }
+kanari-common = { workspace = true }
 
 # Move dependencies
 move-core-types = { workspace = true }
-move-vm-runtime = { path = "../../third_party/move/crates/move-vm-runtime" }
+move-vm-runtime = { workspace = true }
 move-binary-format = { workspace = true }
-move-bytecode-verifier = { path = "../../third_party/move/crates/move-bytecode-verifier" }
+move-bytecode-verifier = { workspace = true }
 move-vm-types = { workspace = true }
 move-compiler = { workspace = true }
 move-symbol-pool = { workspace = true }

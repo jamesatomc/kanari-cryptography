@@ -53,8 +53,11 @@ kanari-common = { path = "crates/kanari-common" }
 kanari-crypto = { path = "crates/kanari-crypto" }
 kanari-types = { path = "crates/kanari-types" }
 kanari-move-runtime = { path = "crates/kanari-move-runtime" }
+kanari-framework-builder = { path = "crates/kanari-framework-builder" }
 kanari-frameworks = { path = "crates/kanari-frameworks" }
-
+kanari-rpc-api = { path = "crates/kanari-rpc-api" }
+kanari-rpc-client = { path = "crates/kanari-rpc-client" }
+kanari-rpc-server = { path = "crates/kanari-rpc-server" }
 
 # Move dependencies
 move-binary-format = { path = "third_party/move/crates/move-binary-format" }
@@ -82,4 +85,7 @@ move-abstract-stack = { path = "third_party/move/crates/move-abstract-stack" }
 move-docgen = { path = "third_party/move/crates/move-docgen" }
 move-errmapgen = { path = "third_party/move/crates/move-errmapgen" }
 move-stdlib-natives = { path = "third_party/move/crates/move-stdlib-natives" }
+
+move-vm-runtime = { path = "third_party/move/crates/move-vm-runtime" }
 move-coverage = { path = "third_party/move/crates/move-coverage" }
+move-bytecode-verifier = { path = "third_party/move/crates/move-bytecode-verifier" }

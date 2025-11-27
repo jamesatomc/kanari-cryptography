@@ -13,7 +13,7 @@ kanari-crypto = { path = "../kanari-crypto" }
 serde = { workspace = true }
 bcs = { workspace = true }
 move-core-types = { workspace = true }
-move-binary-format = { path = "../../third_party/move/crates/move-binary-format" }
+move-binary-format = { workspace = true }
 chrono = "0.4"
 tokio = { version = "1.0", features = ["full"] }
 tracing = "0.1"

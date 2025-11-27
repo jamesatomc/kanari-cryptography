@@ -15,10 +15,11 @@ sha2 = "0.10"
 
 # Move VM dependencies (use workspace/local paths similar to other crates)
 move-core-types = { workspace = true }
-move-vm-runtime = { path = "../../third_party/move/crates/move-vm-runtime" }
+move-vm-runtime = { workspace = true }
 move-binary-format = { workspace = true }
 move-vm-types = { workspace = true }
+move-vm-test-utils = { workspace = true }
 
-kanari-types = { path = "../kanari-types" }
-kanari-crypto = { path = "../kanari-crypto" }
-move-vm-test-utils = { path = "../../third_party/move/crates/move-vm-test-utils" }
+kanari-types = { workspace = true }
+kanari-crypto = { workspace = true }
+
