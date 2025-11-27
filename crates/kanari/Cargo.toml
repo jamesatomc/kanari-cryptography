@@ -41,6 +41,7 @@ kanari-crypto = { path = "../kanari-crypto" }
 kanari-types = { path = "../kanari-types" }
 kanari-move-runtime = { path = "../kanari-move-runtime" }
 kanari-rpc-client = { path = "../kanari-rpc-client" }
+kanari-rpc-api = { path = "../kanari-rpc-api" }
 
 # Move dependencies
 move-core-types = { workspace = true }

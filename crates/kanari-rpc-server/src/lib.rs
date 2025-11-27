@@ -200,13 +200,123 @@ async fn handle_get_stats(state: &RpcServerState, request: &RpcRequest) -> RpcRe
 }
 
 /// Handle submit transaction request
-async fn handle_submit_transaction(_state: &RpcServerState, request: &RpcRequest) -> RpcResponse {
-    error!("Transaction submission not yet implemented");
-    RpcResponse {
-        jsonrpc: "2.0".to_string(),
-        result: None,
-        error: Some(RpcError::internal_error("Not implemented")),
-        id: request.id,
+async fn handle_submit_transaction(state: &RpcServerState, request: &RpcRequest) -> RpcResponse {
+    use kanari_move_runtime::SignedTransaction;
+    use kanari_types::address::Address;
+    use std::str::FromStr;
+
+    let tx_data: SignedTransactionData = match serde_json::from_value(request.params.clone()) {
+        Ok(data) => data,
+        Err(e) => {
+            error!("Failed to parse transaction data: {}", e);
+            return RpcResponse {
+                jsonrpc: "2.0".to_string(),
+                result: None,
+                error: Some(RpcError::invalid_params(format!(
+                    "Invalid transaction data: {}",
+                    e
+                ))),
+                id: request.id,
+            };
+        }
+    };
+
+    // Parse sender address
+    let sender = match Address::from_str(&tx_data.sender) {
+        Ok(addr) => addr,
+        Err(e) => {
+            error!("Invalid sender address: {}", e);
+            return RpcResponse {
+                jsonrpc: "2.0".to_string(),
+                result: None,
+                error: Some(RpcError::invalid_params(format!(
+                    "Invalid sender address: {}",
+                    e
+                ))),
+                id: request.id,
+            };
+        }
+    };
+
+    // Parse recipient address if present
+    let recipient = if let Some(ref recipient_str) = tx_data.recipient {
+        match Address::from_str(recipient_str) {
+            Ok(addr) => Some(addr),
+            Err(e) => {
+                error!("Invalid recipient address: {}", e);
+                return RpcResponse {
+                    jsonrpc: "2.0".to_string(),
+                    result: None,
+                    error: Some(RpcError::invalid_params(format!(
+                        "Invalid recipient address: {}",
+                        e
+                    ))),
+                    id: request.id,
+                };
+            }
+        }
+    } else {
+        None
+    };
+
+    // Create Transaction based on type
+    use kanari_move_runtime::Transaction;
+    let transaction = if let (Some(recipient), Some(amount)) = (recipient, tx_data.amount) {
+        Transaction::Transfer {
+            from: sender.to_string(),
+            to: recipient.to_string(),
+            amount,
+            gas_limit: tx_data.gas_limit,
+            gas_price: tx_data.gas_price,
+        }
+    } else {
+        error!("Invalid transaction type - only transfers supported currently");
+        return RpcResponse {
+            jsonrpc: "2.0".to_string(),
+            result: None,
+            error: Some(RpcError::invalid_params(
+                "Only transfer transactions are supported",
+            )),
+            id: request.id,
+        };
+    };
+
+    // Create SignedTransaction
+    let mut signed_tx = SignedTransaction::new(transaction);
+
+    // Set signature if present
+    if let Some(sig) = tx_data.signature {
+        signed_tx.signature = Some(sig);
+    }
+
+    // Submit transaction to blockchain
+    match state.engine.submit_transaction(signed_tx) {
+        Ok(tx_hash) => {
+            let tx_hash_hex = hex::encode(&tx_hash);
+            info!("Transaction submitted successfully: {}", tx_hash_hex);
+            let result = serde_json::json!({
+                "hash": tx_hash_hex,
+                "status": "pending"
+            });
+            RpcResponse {
+                jsonrpc: "2.0".to_string(),
+                result: Some(result),
+                error: None,
+                id: request.id,
+            }
+        }
+        Err(e) => {
+            error!("Failed to submit transaction: {}", e);
+            RpcResponse {
+                jsonrpc: "2.0".to_string(),
+                result: None,
+                error: Some(RpcError::internal_error(format!(
+                    "Transaction submission failed: {}",
+                    e
+                ))),
+                id: request.id,
+            }
+        }
     }
 }
 

@@ -107,14 +107,21 @@ impl RpcClient {
     }
 
     /// Submit signed transaction
-    pub async fn submit_transaction(&self, tx: SignedTransactionData) -> Result<String> {
-        let request = SubmitTransactionRequest { transaction: tx };
+    pub async fn submit_transaction(&self, tx: SignedTransactionData) -> Result<TransactionStatus> {
         let response = self
-            .request(methods::SUBMIT_TRANSACTION, serde_json::to_value(request)?)
+            .request(methods::SUBMIT_TRANSACTION, serde_json::to_value(tx)?)
             .await?;
 
         let result = response.result.context("No result in response")?;
-        serde_json::from_value(result).context("Failed to parse transaction hash")
+
+        let status = TransactionStatus {
+            hash: result["hash"].as_str().unwrap_or("").to_string(),
+            status: result["status"].as_str().unwrap_or("unknown").to_string(),
+            block_height: None,
+            gas_used: None,
+        };
+
+        Ok(status)
     }
 }
 

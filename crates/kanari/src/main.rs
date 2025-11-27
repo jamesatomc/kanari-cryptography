@@ -219,12 +219,42 @@ fn main() -> Result<()> {
                 println!("  🔒 Transaction signed");
 
                 println!("  📤 Submitting transaction to node...");
-                println!("  ⏳ Waiting for block production...");
 
-                // Note: Transaction submission via RPC not yet implemented
-                // For now, show instructions
-                println!("  ℹ️  Transaction submission via RPC is pending implementation");
-                println!("  Please use the node directly or wait for the next update");
+                // Get account to get sequence number
+                let account = client
+                    .get_account(&from)
+                    .await
+                    .context("Failed to get sender account")?;
+
+                // Convert SignedTransaction to RPC format
+                use kanari_rpc_api::SignedTransactionData;
+                let tx_data = SignedTransactionData {
+                    sender: from.clone(),
+                    recipient: Some(to.clone()),
+                    amount: Some(amount_mist),
+                    gas_limit: signed_tx.transaction.gas_limit(),
+                    gas_price: signed_tx.transaction.gas_price(),
+                    sequence_number: account.sequence_number,
+                    signature: signed_tx.signature.clone(),
+                };
+
+                // Submit transaction via RPC
+                match client.submit_transaction(tx_data).await {
+                    Ok(status) => {
+                        println!("  ✅ Transaction submitted successfully!");
+                        println!("  Transaction hash: {}", status.hash);
+                        println!("  Status: {}", status.status);
+                        println!("  ⏳ Waiting for block confirmation...");
+                        println!(
+                            "  Check balance with: cargo run --bin kanari balance --address {}",
+                            to
+                        );
+                    }
+                    Err(e) => {
+                        eprintln!("  ❌ Failed to submit transaction: {}", e);
+                        return Err(e);
+                    }
+                }
 
                 Ok::<(), anyhow::Error>(())
             })?;
