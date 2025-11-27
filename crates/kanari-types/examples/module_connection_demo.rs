@@ -52,6 +52,8 @@ fn main() {
         b"KANARI".to_vec(),
         b"Kanari Coin".to_vec(),
         b"Native token of Kanari blockchain".to_vec(),
+        9u8,
+        None,
     );
     println!("   Currency: {}", metadata.symbol_str().unwrap());
     println!("   Name: {}", metadata.name_str().unwrap());

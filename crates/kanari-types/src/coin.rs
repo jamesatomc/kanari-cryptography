@@ -34,15 +34,25 @@ pub struct CurrencyMetadata {
     pub symbol: Vec<u8>,
     pub name: Vec<u8>,
     pub description: Vec<u8>,
+    pub decimals: u8,
+    pub icon_url: Option<Vec<u8>>,
 }
 
 impl CurrencyMetadata {
     /// Create new metadata
-    pub fn new(symbol: Vec<u8>, name: Vec<u8>, description: Vec<u8>) -> Self {
+    pub fn new(
+        symbol: Vec<u8>,
+        name: Vec<u8>,
+        description: Vec<u8>,
+        decimals: u8,
+        icon_url: Option<Vec<u8>>,
+    ) -> Self {
         Self {
             symbol,
             name,
             description,
+            decimals,
+            icon_url,
         }
     }
 
@@ -145,8 +155,11 @@ mod tests {
             b"KANARI".to_vec(),
             b"Kanari Coin".to_vec(),
             b"Native coin of Kanari".to_vec(),
+            9u8,
+            None,
         );
         assert_eq!(metadata.symbol_str().unwrap(), "KANARI");
         assert_eq!(metadata.name_str().unwrap(), "Kanari Coin");
+        assert_eq!(metadata.decimals, 9u8);
     }
 }

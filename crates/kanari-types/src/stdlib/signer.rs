@@ -58,6 +58,9 @@ impl SignerModule {
     pub fn function_names() -> SignerFunctions {
         SignerFunctions {
             address_of: "address_of",
+            borrow_address: "borrow_address",
+            address_to_u64: "address_to_u64",
+            address_to_bytes: "address_to_bytes",
         }
     }
 }
@@ -65,6 +68,9 @@ impl SignerModule {
 /// Signer module function names
 pub struct SignerFunctions {
     pub address_of: &'static str,
+    pub borrow_address: &'static str,
+    pub address_to_u64: &'static str,
+    pub address_to_bytes: &'static str,
 }
 
 #[cfg(test)]

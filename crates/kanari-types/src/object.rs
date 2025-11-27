@@ -50,6 +50,8 @@ impl ObjectModule {
         ObjectFunctions {
             new: "new",
             uid_address: "uid_address",
+            id_address_as_u64: "id_address_as_u64",
+            id_bytes: "id_bytes",
         }
     }
 }
@@ -58,6 +60,8 @@ impl ObjectModule {
 pub struct ObjectFunctions {
     pub new: &'static str,
     pub uid_address: &'static str,
+    pub id_address_as_u64: &'static str,
+    pub id_bytes: &'static str,
 }
 
 #[cfg(test)]

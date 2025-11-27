@@ -1,12 +1,11 @@
-/// Balance Module - จัดการยอดคงเหลือของ Kanari Coin
 module kanari_system::balance {
-    use std::error;
 
     /// Error codes
     const ERR_INSUFFICIENT_BALANCE: u64 = 1;
     const ERR_OVERFLOW: u64 = 2;
+    const ERR_ZERO_AMOUNT: u64 = 3; // Cannot decrease, transfer, or mint an amount of zero.
 
-    /// Balance resource - เก็บยอดคงเหลือ (generic per token type)
+    /// Balance resource - Stores the balance value (generic per token type)
     struct Balance<phantom T> has store, drop {
         value: u64,
     }
@@ -16,46 +15,52 @@ module kanari_system::balance {
         total: u64,
     }
 
-    /// สร้าง Balance ใหม่
+    /// Create a new zero-value Balance
     public fun zero<T>(): Balance<T> {
         Balance<T> { value: 0 }
     }
 
-    /// สร้าง Balance ด้วยจำนวนเริ่มต้น
+    /// Create a new Balance with an initial value
     public fun create<T>(value: u64): Balance<T> {
         Balance<T> { value }
     }
 
-    /// ดูยอดคงเหลือ
+    /// Get the current balance value
     public fun value<T>(balance: &Balance<T>): u64 {
         balance.value
     }
 
-    /// เพิ่มยอดคงเหลือ
+    /// Increase the balance value
     public fun increase<T>(balance: &mut Balance<T>, amount: u64) {
         let new_value = balance.value + amount;
-        assert!(new_value >= balance.value, error::invalid_argument(ERR_OVERFLOW));
+        // Check for overflow
+        assert!(new_value >= balance.value, ERR_OVERFLOW);
         balance.value = new_value;
     }
 
-    /// ลดยอดคงเหลือ
+    /// Decrease the balance value
     public fun decrease<T>(balance: &mut Balance<T>, amount: u64) {
+        // Ensure amount is non-zero
+        assert!(amount > 0, ERR_ZERO_AMOUNT);
+        // Check for sufficient balance
         assert!(balance.value >= amount, ERR_INSUFFICIENT_BALANCE);
         balance.value = balance.value - amount;
     }
 
-    /// โอนยอดจาก Balance หนึ่งไปอีก Balance หนึ่ง
+    /// Transfer value from one Balance to another
     public fun transfer<T>(from: &mut Balance<T>, to: &mut Balance<T>, amount: u64) {
+        // Ensure amount is non-zero
+        assert!(amount > 0, ERR_ZERO_AMOUNT);
         decrease<T>(from, amount);
         increase<T>(to, amount);
     }
 
-    /// ตรวจสอบว่ามียอดเพียงพอหรือไม่
+    /// Check if the balance is sufficient for a given amount
     public fun has_sufficient<T>(balance: &Balance<T>, amount: u64): bool {
         balance.value >= amount
     }
 
-    /// ทำลาย Balance และคืนค่า
+    /// Destroy the Balance and return its value
     public fun destroy<T>(balance: Balance<T>): u64 {
         let Balance { value } = balance;
         value
@@ -68,8 +73,12 @@ module kanari_system::balance {
 
     /// Increase supply: add `amount` to `s` and return a `Balance` for the newly minted amount.
     public fun increase_supply<T>(s: &mut Supply<T>, amount: u64): Balance<T> {
+        // Ensure amount is non-zero for minting
+        assert!(amount > 0, ERR_ZERO_AMOUNT);
+        
         let new_total = s.total + amount;
-        assert!(new_total >= s.total, error::invalid_argument(ERR_OVERFLOW));
+        // Check for overflow
+        assert!(new_total >= s.total, ERR_OVERFLOW);
         s.total = new_total;
         create<T>(amount)
     }
@@ -81,13 +90,13 @@ module kanari_system::balance {
 
     
 
-    /// รวม Balance สองอัน
+    /// Merge two Balances together
     public fun merge<T>(dst: &mut Balance<T>, src: Balance<T>) {
         let value = destroy<T>(src);
         increase<T>(dst, value);
     }
 
-    /// แยก Balance
+    /// Split the Balance into two
     public fun split<T>(balance: &mut Balance<T>, amount: u64): Balance<T> {
         decrease<T>(balance, amount);
         create<T>(amount)

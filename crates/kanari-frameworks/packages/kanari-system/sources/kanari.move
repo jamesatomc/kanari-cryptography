@@ -1,23 +1,18 @@
 /// Coin<KANARI> is the token used to pay for gas in KANARI.
-/// It has 9 decimals, and the smallest unit (10^-9) is called "KA".
+/// It has 9 decimals, and the smallest unit (10^-9) is called "MIST".
 module kanari_system::kanari {
-    use std::option;
-    use std::vector;
-    use std::ascii;
-    use std::string;
-    use kanari_system::balance;
-    use kanari_system::balance::{Balance};
-    use kanari_system::tx_context;
-    use kanari_system::tx_context::TxContext;
-    use kanari_system::transfer;
+
     use kanari_system::coin;
     use kanari_system::coin::{Coin, TreasuryCap};
+    use kanari_system::tx_context::{Self, TxContext};
+    use std::string;
+    use std::ascii;
+    use std::option;
+    use kanari_system::transfer;
 
     const EAlreadyMinted: u64 = 0;
     /// Sender is not @0x0 the system address.
     const ENotSystemAddress: u64 = 1;
-    /// Exceeded maximum supply
-    const EMAX_SUPPLY: u64 = 2;
 
     #[allow(unused_const)]
     /// The amount of Mist per Kanari token based on the fact that mist is

@@ -48,7 +48,7 @@ mod tests {
             state_hash: vec![1, 2, 3],
         };
         let b = h.to_bytes();
-        let parsed: BlockHeader = serde_json::from_slice(&b).unwrap();
+        let parsed: BlockHeader = bcs::from_bytes(&b).unwrap();
         assert_eq!(parsed, h);
     }
 }

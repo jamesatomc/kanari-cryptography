@@ -56,11 +56,16 @@ impl ModuleRegistry {
                 "zero",
                 "create",
                 "value",
-                "split",
-                "join",
-                "destroy_zero",
+                "increase",
+                "decrease",
+                "transfer",
+                "has_sufficient",
+                "destroy",
+                "new_supply",
                 "increase_supply",
-                "decrease_supply",
+                "destroy_supply",
+                "merge",
+                "split",
             ],
             Self::COIN => vec![
                 "create_currency",
@@ -74,7 +79,7 @@ impl ModuleRegistry {
                 "treasury_into_supply",
                 "into_balance",
             ],
-            Self::OBJECT => vec!["new", "uid_address"],
+            Self::OBJECT => vec!["new", "uid_address", "id_address_as_u64", "id_bytes"],
             Self::TRANSFER => vec![
                 "is_valid_amount",
                 "create_transfer",
@@ -83,7 +88,7 @@ impl ModuleRegistry {
                 "amount",
                 "execute",
             ],
-            Self::TX_CONTEXT => vec!["sender", "epoch", "digest", "fresh_id", "ids_created"],
+            Self::TX_CONTEXT => vec!["sender", "epoch", "digest", "epoch_timestamp_ms", "fresh_object_address", "ids_created"],
             _ => vec![],
         }
     }
