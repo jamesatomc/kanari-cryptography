@@ -5,7 +5,7 @@ use move_core_types::{
 };
 use serde::{Deserialize, Serialize};
 
-/// Coin record structure
+/// Coin wrapper (mirrors `Coin<T>` in Move)
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CoinRecord {
     pub value: u64,
@@ -22,9 +22,32 @@ impl CoinRecord {
         self.value
     }
 
-    /// Burn coin and return value
+    /// Burn coin and return value (consumes coin)
     pub fn burn(self) -> u64 {
         self.value
+    }
+
+    /// Convert coin into a raw balance (same as burn but kept for API parity)
+    pub fn into_balance(self) -> u64 {
+        self.value
+    }
+
+    /// Construct a coin from a raw balance
+    pub fn from_balance(balance: u64) -> Self {
+        Self { value: balance }
+    }
+
+    /// Split off `amount` from this coin, returning a new coin with that amount.
+    /// Panics if `amount` is greater than current value.
+    pub fn split(&mut self, amount: u64) -> Self {
+        assert!(amount <= self.value, "split amount exceeds coin value");
+        self.value = self.value - amount;
+        Self { value: amount }
+    }
+
+    /// Join another coin into this one (adds value)
+    pub fn join(&mut self, other: CoinRecord) {
+        self.value = self.value + other.value;
     }
 }
 
@@ -67,21 +90,37 @@ impl CurrencyMetadata {
     }
 }
 
-/// Supply record structure
+/// Treasury capability (tracks total supply and acts as mint/burn authority)
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct SupplyRecord {
-    pub total: u64,
+pub struct TreasuryCap {
+    pub total_supply: u64,
 }
 
-impl SupplyRecord {
-    /// Create new supply
-    pub fn new(total: u64) -> Self {
-        Self { total }
+impl TreasuryCap {
+    /// Create a new treasury cap with zero supply
+    pub fn new() -> Self {
+        Self { total_supply: 0 }
     }
 
-    /// Get total supply
-    pub fn total(&self) -> u64 {
-        self.total
+    /// Get total supply tracked by this cap
+    pub fn total_supply(&self) -> u64 {
+        self.total_supply
+    }
+
+    /// Mint new coins, increasing the tracked total supply and returning a CoinRecord
+    pub fn mint(&mut self, amount: u64) -> CoinRecord {
+        assert!(amount > 0, "zero amount");
+        let new_total = self.total_supply.checked_add(amount).expect("overflow");
+        self.total_supply = new_total;
+        CoinRecord::new(amount)
+    }
+
+    /// Burn coins and decrease tracked total supply. Returns burned value.
+    pub fn burn(&mut self, coin: CoinRecord) -> u64 {
+        let value = coin.burn();
+        assert!(self.total_supply >= value, "underflow");
+        self.total_supply = self.total_supply - value;
+        value
     }
 }
 
@@ -107,6 +146,7 @@ impl CoinModule {
             create_currency: "create_currency",
             mint: "mint",
             mint_and_transfer: "mint_and_transfer",
+            from_balance: "from_balance",
             burn: "burn",
             total_supply: "total_supply",
             value: "value",
@@ -123,6 +163,7 @@ pub struct CoinFunctions {
     pub create_currency: &'static str,
     pub mint: &'static str,
     pub mint_and_transfer: &'static str,
+    pub from_balance: &'static str,
     pub burn: &'static str,
     pub total_supply: &'static str,
     pub value: &'static str,

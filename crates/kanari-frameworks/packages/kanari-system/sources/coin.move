@@ -125,6 +125,13 @@ module kanari_system::coin {
         balance
     }
 
+    /// Construct a `Coin<T>` from a `Balance<T>`.
+    /// This helper allows other modules to wrap balances into Coin objects
+    /// when they take custody of raw balances (e.g., DEX pools).
+    public fun from_balance<T>(balance: Balance<T>): Coin<T> {
+        Coin { balance }
+    }
+
     /// Get total supply from TreasuryCap
     public fun total_supply<T>(cap: &TreasuryCap<T>): u64 {
         cap.total_supply

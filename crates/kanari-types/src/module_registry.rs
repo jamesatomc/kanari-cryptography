@@ -71,6 +71,7 @@ impl ModuleRegistry {
                 "create_currency",
                 "mint",
                 "mint_and_transfer",
+                "from_balance",
                 "burn",
                 "total_supply",
                 "value",
