@@ -16,6 +16,7 @@ Uses proper address types with validation
 -  [Function `total_amount`](#0x2_transfer_total_amount)
 -  [Function `is_valid_amount`](#0x2_transfer_is_valid_amount)
 -  [Function `public_freeze_object`](#0x2_transfer_public_freeze_object)
+-  [Function `public_transfer`](#0x2_transfer_public_transfer)
 
 
 <pre><code></code></pre>
@@ -266,7 +267,36 @@ This implementation is a no-op placeholder that consumes the object.
 
 <pre><code><b>public</b> <b>fun</b> <a href="transfer.md#0x2_transfer_public_freeze_object">public_freeze_object</a>&lt;T: drop&gt;(_obj: T) {
     // In a full implementation this would mark the metadata <b>as</b> immutable
-    // or store it in a <b>global</b> registry. Here we simply accept the object.
+    // or store it in a <b>global</b> registry. Here we simply accept the <a href="object.md#0x2_object">object</a>.
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x2_transfer_public_transfer"></a>
+
+## Function `public_transfer`
+
+Transfer an object with store ability to a recipient
+This is a simplified implementation for testing
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="transfer.md#0x2_transfer_public_transfer">public_transfer</a>&lt;T: drop, store&gt;(obj: T, recipient: <b>address</b>)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="transfer.md#0x2_transfer_public_transfer">public_transfer</a>&lt;T: store + drop&gt;(obj: T, recipient: <b>address</b>) {
+    // In a full implementation this would handle <a href="object.md#0x2_object">object</a> ownership <a href="transfer.md#0x2_transfer">transfer</a>
+    // For now, we consume the <a href="object.md#0x2_object">object</a> and ignore the recipient
+    <b>let</b> _ = obj;
+    <b>let</b> _ = recipient;
 }
 </code></pre>
 

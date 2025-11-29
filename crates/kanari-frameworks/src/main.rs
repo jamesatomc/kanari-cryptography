@@ -49,11 +49,33 @@ fn main() -> Result<()> {
 /// Get the packages directory from current working directory
 fn get_packages_dir() -> Result<PathBuf> {
     let current_dir = env::current_dir()?;
-    Ok(if current_dir.ends_with("packages") {
-        current_dir
-    } else {
-        current_dir.join("crates/kanari-frameworks/packages")
-    })
+
+    // Try common candidate locations in order of likelihood:
+    // 1. ./packages (when running from repo root)
+    // 2. ./packages (when running from crates/kanari-frameworks)
+    // 3. ./crates/kanari-frameworks/packages (when running from repo root)
+    let candidate1 = current_dir.join("packages");
+    if candidate1.exists() && candidate1.is_dir() {
+        return Ok(candidate1);
+    }
+
+    // If running from crates/kanari-frameworks, packages are in ./packages
+    if current_dir.ends_with("crates/kanari-frameworks")
+        || current_dir.ends_with("kanari-frameworks")
+    {
+        let cand = current_dir.join("packages");
+        if cand.exists() && cand.is_dir() {
+            return Ok(cand);
+        }
+    }
+
+    let candidate2 = current_dir.join("crates/kanari-frameworks/packages");
+    if candidate2.exists() && candidate2.is_dir() {
+        return Ok(candidate2);
+    }
+
+    // Fallback: return the conventional path (may not exist) so caller can report clear errors
+    Ok(candidate2)
 }
 
 /// Print summary of operations
@@ -70,7 +92,34 @@ fn build_packages(packages_dir: &Path, version: String) -> Result<()> {
     println!("==========================\n");
     println!("📌 Version: {}\n", version);
 
-    let output_dir = packages_dir.join("released");
+    // Place released artifacts in the `kanari-frameworks` crate root (not inside `packages/`).
+    // Find nearest ancestor folder named `kanari-frameworks` starting from `packages_dir`.
+    // `packages_dir` is already a `&Path`, use it directly.
+    let mut ancestor: &Path = packages_dir;
+    let mut framework_dir: Option<PathBuf> = None;
+    loop {
+        if let Some(name) = ancestor.file_name() {
+            if name == "kanari-frameworks" {
+                framework_dir = Some(ancestor.to_path_buf());
+                break;
+            }
+        }
+        if let Some(p) = ancestor.parent() {
+            ancestor = p;
+        } else {
+            break;
+        }
+    }
+
+    let framework_dir = framework_dir.unwrap_or_else(|| {
+        // Fallback to packages_dir parent (best-effort)
+        packages_dir
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| packages_dir.to_path_buf())
+    });
+
+    let output_dir = framework_dir.join("released");
     println!("📁 Packages: {:?}", packages_dir);
     println!("📁 Output: {:?}\n", output_dir);
 

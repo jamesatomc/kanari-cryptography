@@ -13,11 +13,11 @@ impl KanariModule {
     /// The amount of Mist per Kanari token (10^-9 of a Kanari token)
     pub const MIST_PER_KANARI: u64 = 1_000_000_000;
 
-    /// The total supply of Kanari denominated in whole Kanari tokens (10 Billion)
-    pub const TOTAL_SUPPLY_KANARI: u64 = 10_000_000_000;
+    /// The total supply of Kanari denominated in whole Kanari tokens (100 Million)
+    pub const TOTAL_SUPPLY_KANARI: u64 = 100_000_000;
 
-    /// The total supply of Kanari denominated in Mist (10 Billion * 10^9)
-    pub const TOTAL_SUPPLY_MIST: u64 = 10_000_000_000_000_000_000;
+    /// The total supply of Kanari denominated in Mist (100 Million * 10^9)
+    pub const TOTAL_SUPPLY_MIST: u64 = 100_000_000_000_000_000;
 
     /// Get the module ID for kanari_system::kanari
     pub fn get_module_id() -> Result<ModuleId> {
@@ -74,7 +74,7 @@ mod tests {
     #[test]
     fn test_constants() {
         assert_eq!(KanariModule::MIST_PER_KANARI, 1_000_000_000);
-        assert_eq!(KanariModule::TOTAL_SUPPLY_KANARI, 10_000_000_000);
+        assert_eq!(KanariModule::TOTAL_SUPPLY_KANARI, 100_000_000);
         assert_eq!(
             KanariModule::TOTAL_SUPPLY_MIST,
             KanariModule::TOTAL_SUPPLY_KANARI * KanariModule::MIST_PER_KANARI

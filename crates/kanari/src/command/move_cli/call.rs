@@ -71,7 +71,11 @@ impl Call {
         // Normalize and validate addresses
         let normalize_addr = |a: &str| -> Result<String> {
             let s = a.trim();
-            let hex = if s.starts_with("0x") || s.starts_with("0X") { &s[2..] } else { s };
+            let hex = if s.starts_with("0x") || s.starts_with("0X") {
+                &s[2..]
+            } else {
+                s
+            };
             if hex.len() > 64 {
                 anyhow::bail!("Address too long: {}", a);
             }
@@ -170,7 +174,7 @@ impl Call {
                 gas_limit: self.gas_limit,
                 gas_price: self.gas_price,
             };
-            
+
             // Get transaction hash (same way server does it)
             let tx_hash = transaction.hash();
 

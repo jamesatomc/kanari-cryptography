@@ -1,10 +1,10 @@
 use crate::changeset::ChangeSet;
 use anyhow::Result;
+use kanari_crypto::hash_data_blake3;
 use kanari_types::address::Address as KanariAddress;
 use move_core_types::account_address::AccountAddress;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use kanari_crypto::hash_data_blake3;
 
 /// Account state in the blockchain
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,13 +48,13 @@ pub struct StateManager {
 
 impl StateManager {
     /// Create new state with genesis allocation
-    /// Total supply: 10 billion KANARI = 10,000,000,000,000,000,000 Mist
+    /// Total supply: 100 million KANARI = 100,000,000,000,000,000 Mist
     /// Dev address gets entire supply according to kanari.move
     pub fn new() -> Self {
         let mut accounts = HashMap::new();
 
-        // Total supply in Mist (10 billion KANARI * 10^9)
-        const TOTAL_SUPPLY_MIST: u64 = 10_000_000_000_000_000_000;
+        // Total supply in Mist (100 million KANARI * 10^9)
+        const TOTAL_SUPPLY_MIST: u64 = 100_000_000_000_000_000;
 
         // Initialize system accounts
         let genesis_addr =

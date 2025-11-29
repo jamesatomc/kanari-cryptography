@@ -49,7 +49,11 @@ impl Publish {
         // Validate sender address: normalize to 0x-prefixed format
         let sender_normalized = {
             let s = self.sender.trim();
-            let hex = if s.starts_with("0x") || s.starts_with("0X") { &s[2..] } else { s };
+            let hex = if s.starts_with("0x") || s.starts_with("0X") {
+                &s[2..]
+            } else {
+                s
+            };
             if hex.len() > 64 {
                 bail!("Sender address too long: {}", self.sender);
             }
@@ -85,10 +89,7 @@ impl Publish {
                 "Failed to load wallet. Make sure the wallet exists and password is correct",
             )?;
 
-            println!(
-                "Wallet loaded: {} (curve: {})",
-                self.sender, w.curve_type
-            );
+            println!("Wallet loaded: {} (curve: {})", self.sender, w.curve_type);
             Some(w)
         } else {
             println!("Test mode: Skipping signature");
@@ -106,7 +107,7 @@ impl Publish {
             let module = &module_unit.unit.module;
             let module_name = module.self_id().name().to_string();
             let module_address = module.self_id().address().to_string();
-            
+
             // Normalize module address for comparison
             let module_addr_normalized = {
                 let hex = if module_address.starts_with("0x") || module_address.starts_with("0X") {
@@ -119,8 +120,10 @@ impl Publish {
 
             // Only publish modules where the module address matches the sender
             if module_addr_normalized.to_lowercase() != sender_normalized.to_lowercase() {
-                println!("\n   ⏭️  Skipping Module: {} (address {} doesn't match sender)", 
-                    module_name, module_address);
+                println!(
+                    "\n   ⏭️  Skipping Module: {} (address {} doesn't match sender)",
+                    module_name, module_address
+                );
                 skipped_count += 1;
                 continue;
             }
@@ -168,12 +171,13 @@ impl Publish {
                     gas_limit: self.gas_limit,
                     gas_price: self.gas_price,
                 };
-                
+
                 // Get transaction hash (same way server does it)
                 let tx_hash = transaction.hash();
 
                 // Sign with wallet
-                match kanari_crypto::sign_message(&wallet.private_key, &tx_hash, wallet.curve_type) {
+                match kanari_crypto::sign_message(&wallet.private_key, &tx_hash, wallet.curve_type)
+                {
                     Ok(sig) => {
                         println!("     🔐 Transaction signed with {} key", wallet.curve_type);
                         Some(sig)
@@ -220,7 +224,7 @@ impl Publish {
                 },
                 Err(e) => eprintln!("     Failed to send RPC request: {}", e),
             }
-            
+
             published_count += 1;
         }
 

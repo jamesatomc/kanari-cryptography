@@ -138,7 +138,7 @@ Convert a vector of bytes <code>bytes</code> into an <code><a href="../../depend
 <code>bytes</code> contains non-ASCII characters.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_string">string</a>(bytes: <a href="../../dependencies/move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;): <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>
+<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a>(bytes: <a href="../../dependencies/move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;): <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>
 </code></pre>
 
 
@@ -147,7 +147,7 @@ Convert a vector of bytes <code>bytes</code> into an <code><a href="../../depend
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_string">string</a>(bytes: <a href="../../dependencies/move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;): <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">String</a> {
+<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a>(bytes: <a href="../../dependencies/move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;): <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">String</a> {
    <b>let</b> x = <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_try_string">try_string</a>(bytes);
    <b>assert</b>!(
         <a href="../../dependencies/move-stdlib/option.md#0x1_option_is_some">option::is_some</a>(&x),
@@ -199,11 +199,11 @@ characters. Otherwise returns <code>None</code>.
 
 ## Function `all_characters_printable`
 
-Returns <code><b>true</b></code> if all characters in <code>string</code> are printable characters
+Returns <code><b>true</b></code> if all characters in <code><a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a></code> are printable characters
 Returns <code><b>false</b></code> otherwise. Not all <code><a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">String</a></code>s are printable strings.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_all_characters_printable">all_characters_printable</a>(string: &<a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>): bool
+<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_all_characters_printable">all_characters_printable</a>(<a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a>: &<a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>): bool
 </code></pre>
 
 
@@ -212,11 +212,11 @@ Returns <code><b>false</b></code> otherwise. Not all <code><a href="../../depend
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_all_characters_printable">all_characters_printable</a>(string: &<a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">String</a>): bool {
-    <b>let</b> len = <a href="../../dependencies/move-stdlib/vector.md#0x1_vector_length">vector::length</a>(&string.bytes);
+<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_all_characters_printable">all_characters_printable</a>(<a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a>: &<a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">String</a>): bool {
+    <b>let</b> len = <a href="../../dependencies/move-stdlib/vector.md#0x1_vector_length">vector::length</a>(&<a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a>.bytes);
     <b>let</b> i = 0;
     <b>while</b> (i &lt; len) {
-        <b>let</b> byte = *<a href="../../dependencies/move-stdlib/vector.md#0x1_vector_borrow">vector::borrow</a>(&string.bytes, i);
+        <b>let</b> byte = *<a href="../../dependencies/move-stdlib/vector.md#0x1_vector_borrow">vector::borrow</a>(&<a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a>.bytes, i);
         <b>if</b> (!<a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_is_printable_char">is_printable_char</a>(byte)) <b>return</b> <b>false</b>;
         i = i + 1;
     };
@@ -234,7 +234,7 @@ Returns <code><b>false</b></code> otherwise. Not all <code><a href="../../depend
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_push_char">push_char</a>(string: &<b>mut</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>, char: <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_Char">ascii::Char</a>)
+<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_push_char">push_char</a>(<a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a>: &<b>mut</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>, char: <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_Char">ascii::Char</a>)
 </code></pre>
 
 
@@ -243,8 +243,8 @@ Returns <code><b>false</b></code> otherwise. Not all <code><a href="../../depend
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_push_char">push_char</a>(string: &<b>mut</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">String</a>, char: <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_Char">Char</a>) {
-    <a href="../../dependencies/move-stdlib/vector.md#0x1_vector_push_back">vector::push_back</a>(&<b>mut</b> string.bytes, char.byte);
+<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_push_char">push_char</a>(<a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a>: &<b>mut</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">String</a>, char: <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_Char">Char</a>) {
+    <a href="../../dependencies/move-stdlib/vector.md#0x1_vector_push_back">vector::push_back</a>(&<b>mut</b> <a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a>.bytes, char.byte);
 }
 </code></pre>
 
@@ -258,7 +258,7 @@ Returns <code><b>false</b></code> otherwise. Not all <code><a href="../../depend
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_pop_char">pop_char</a>(string: &<b>mut</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>): <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_Char">ascii::Char</a>
+<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_pop_char">pop_char</a>(<a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a>: &<b>mut</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>): <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_Char">ascii::Char</a>
 </code></pre>
 
 
@@ -267,8 +267,8 @@ Returns <code><b>false</b></code> otherwise. Not all <code><a href="../../depend
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_pop_char">pop_char</a>(string: &<b>mut</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">String</a>): <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_Char">Char</a> {
-    <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_Char">Char</a> { byte: <a href="../../dependencies/move-stdlib/vector.md#0x1_vector_pop_back">vector::pop_back</a>(&<b>mut</b> string.bytes) }
+<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_pop_char">pop_char</a>(<a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a>: &<b>mut</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">String</a>): <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_Char">Char</a> {
+    <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_Char">Char</a> { byte: <a href="../../dependencies/move-stdlib/vector.md#0x1_vector_pop_back">vector::pop_back</a>(&<b>mut</b> <a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a>.bytes) }
 }
 </code></pre>
 
@@ -282,7 +282,7 @@ Returns <code><b>false</b></code> otherwise. Not all <code><a href="../../depend
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_length">length</a>(string: &<a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>): u64
+<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_length">length</a>(<a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a>: &<a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>): u64
 </code></pre>
 
 
@@ -291,8 +291,8 @@ Returns <code><b>false</b></code> otherwise. Not all <code><a href="../../depend
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_length">length</a>(string: &<a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">String</a>): u64 {
-    <a href="../../dependencies/move-stdlib/vector.md#0x1_vector_length">vector::length</a>(<a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_as_bytes">as_bytes</a>(string))
+<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_length">length</a>(<a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a>: &<a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">String</a>): u64 {
+    <a href="../../dependencies/move-stdlib/vector.md#0x1_vector_length">vector::length</a>(<a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_as_bytes">as_bytes</a>(<a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a>))
 }
 </code></pre>
 
@@ -304,10 +304,10 @@ Returns <code><b>false</b></code> otherwise. Not all <code><a href="../../depend
 
 ## Function `as_bytes`
 
-Get the inner bytes of the <code>string</code> as a reference
+Get the inner bytes of the <code><a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a></code> as a reference
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_as_bytes">as_bytes</a>(string: &<a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>): &<a href="../../dependencies/move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;
+<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_as_bytes">as_bytes</a>(<a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a>: &<a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>): &<a href="../../dependencies/move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;
 </code></pre>
 
 
@@ -316,8 +316,8 @@ Get the inner bytes of the <code>string</code> as a reference
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_as_bytes">as_bytes</a>(string: &<a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">String</a>): &<a href="../../dependencies/move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt; {
-   &string.bytes
+<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_as_bytes">as_bytes</a>(<a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a>: &<a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">String</a>): &<a href="../../dependencies/move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt; {
+   &<a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a>.bytes
 }
 </code></pre>
 
@@ -329,10 +329,10 @@ Get the inner bytes of the <code>string</code> as a reference
 
 ## Function `into_bytes`
 
-Unpack the <code>string</code> to get its backing bytes
+Unpack the <code><a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a></code> to get its backing bytes
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_into_bytes">into_bytes</a>(string: <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>): <a href="../../dependencies/move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;
+<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_into_bytes">into_bytes</a>(<a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a>: <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>): <a href="../../dependencies/move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;
 </code></pre>
 
 
@@ -341,8 +341,8 @@ Unpack the <code>string</code> to get its backing bytes
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_into_bytes">into_bytes</a>(string: <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">String</a>): <a href="../../dependencies/move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt; {
-   <b>let</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">String</a> { bytes } = string;
+<pre><code><b>public</b> <b>fun</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_into_bytes">into_bytes</a>(<a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a>: <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">String</a>): <a href="../../dependencies/move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt; {
+   <b>let</b> <a href="../../dependencies/move-stdlib/ascii.md#0x1_ascii_String">String</a> { bytes } = <a href="../../dependencies/move-stdlib/string.md#0x1_string">string</a>;
    bytes
 }
 </code></pre>

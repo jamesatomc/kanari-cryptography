@@ -10,8 +10,8 @@ pub mod test;
 
 use move_core_types::{account_address::AccountAddress, identifier::Identifier};
 use move_package::source_package::layout::SourcePackageLayout;
-use move_vm_runtime::native_functions::NativeFunction;
 use move_stdlib_natives::{all_natives, nursery_natives, GasParameters, NurseryGasParameters};
+use move_vm_runtime::native_functions::NativeFunction;
 use std::path::PathBuf;
 
 use clap::Subcommand;
@@ -52,12 +52,16 @@ impl MoveCommand {
                 let std_addr = AccountAddress::from_hex_literal("0x1").unwrap();
                 let std_natives = all_natives(std_addr, GasParameters::zeros())
                     .into_iter()
-                    .chain(nursery_natives(false, std_addr, NurseryGasParameters::zeros()));
+                    .chain(nursery_natives(
+                        false,
+                        std_addr,
+                        NurseryGasParameters::zeros(),
+                    ));
 
                 // Construct kanari crypto/system natives (registered under package address 0x2)
                 let system_addr = AccountAddress::from_hex_literal("0x2").unwrap();
-                let crypto_natives = kanari_crypto::move_natives::all_natives(system_addr)
-                    .into_iter();
+                let crypto_natives =
+                    kanari_crypto::move_natives::all_natives(system_addr).into_iter();
 
                 // Merge all natives and pass into test runner
                 let natives = std_natives.chain(crypto_natives).collect();
