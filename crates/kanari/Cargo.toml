@@ -60,6 +60,7 @@ move-vm-test-utils = { workspace = true }
 move-unit-test = { workspace = true }
 
 bcs = { workspace = true }
+move-stdlib-natives = { workspace = true }
 
 [features]
 default = []
