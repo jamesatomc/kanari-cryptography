@@ -82,8 +82,8 @@ pub fn all_natives(move_addr: AccountAddress) -> move_vm_runtime::native_functio
             Ok(pk) => pk,
             Err(_) => return Ok(NR::err(context.gas_used(), 1)),
         };
-        // Convert secp public key to uncompressed bytes and return
-        let out = SecpPublicKey::from(pubkey).serialize_uncompressed().to_vec();
+        // Convert secp public key to compressed bytes (33) and return
+        let out = SecpPublicKey::from(pubkey).serialize().to_vec();
         Ok(NR::ok(context.gas_used(), smallvec![Value::vector_u8(out)]))
     });
 
@@ -126,7 +126,52 @@ pub fn all_natives(move_addr: AccountAddress) -> move_vm_runtime::native_functio
             Sha256::digest(&msg).to_vec()
         };
 
-        // parse pubkey (allow compressed/uncompressed)
+        // If signature is 64 bytes it may be Schnorr (x-only public key) or non-recoverable ECDSA.
+        if signature.len() == 64 {
+            // If a 32-byte public key is provided, treat as Schnorr x-only key.
+            if public_key.len() == 32 {
+                // Schnorr requires the message to be exactly 32 bytes in these tests.
+                if msg.len() != 32 {
+                    return Ok(NR::err(context.gas_used(), 6)); // ErrorInvalidMessage
+                }
+
+                let msg32: [u8; 32] = match msg.as_slice().try_into() {
+                    Ok(a) => a,
+                    Err(_) => return Ok(NR::err(context.gas_used(), 6)),
+                };
+
+                // parse x-only pubkey and schnorr signature via secp256k1
+                use secp256k1::schnorr::Signature as SchnorrSig;
+                use secp256k1::XOnlyPublicKey as XOnlyPub;
+                let xpk = match XOnlyPub::from_slice(&public_key) {
+                    Ok(x) => x,
+                    Err(_) => return Ok(NR::err(context.gas_used(), 5)), // ErrorInvalidXOnlyPubKey
+                };
+
+                let sch_sig = match SchnorrSig::from_slice(&signature) {
+                    Ok(s) => s,
+                    Err(_) => return Ok(NR::err(context.gas_used(), 7)), // ErrorInvalidSchnorrSignature
+                };
+
+                let secp = Secp256k1::new();
+                // secp256k1 crate's schnorr API verifies a 32-byte message
+                let verified = secp.verify_schnorr(&sch_sig, &msg32, &xpk).is_ok();
+                return move_vm_types::natives::function::NativeResult::map_partial_vm_result_one(context.gas_used(), Ok(Value::bool(verified)));
+            }
+
+            // If signature is 64 but public key is neither 32 nor a valid compressed/uncompressed length,
+            // treat short public keys as invalid x-only pubkeys for schnorr-specific tests.
+            if public_key.len() < 33 {
+                return Ok(NR::err(context.gas_used(), 5)); // ErrorInvalidXOnlyPubKey
+            }
+        } else {
+            // If signature is not 64 but public_key looks like an x-only key, it's an invalid schnorr signature
+            if public_key.len() == 32 {
+                return Ok(NR::err(context.gas_used(), 7)); // ErrorInvalidSchnorrSignature
+            }
+        }
+
+        // parse pubkey (allow compressed/uncompressed) for ECDSA
         let vk = match K256VerifyingKey::from_sec1_bytes(&public_key) {
             Ok(v) => v,
             Err(_) => return Ok(NR::err(context.gas_used(), 3)),

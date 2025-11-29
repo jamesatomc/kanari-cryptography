@@ -5,7 +5,7 @@ module kanari_system::coin {
     use kanari_system::url;
     use kanari_system::object;
     use kanari_system::balance::{Self, Balance, Supply};
-    use kanari_system::tx_context::{Self, TxContext};
+    use kanari_system::tx_context::TxContext;
     use kanari_system::transfer;
     
     // --- Data Structures ---
