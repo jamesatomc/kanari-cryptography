@@ -106,7 +106,8 @@ impl BlockchainEngine {
 
                 // Execute Move VM
                 let mut runtime = self.move_runtime.write().unwrap();
-                let move_changeset = match runtime.publish_module(module_bytes.clone(), addr) {
+                let move_changeset = match runtime.publish_module(module_bytes.clone(), addr, None)
+                {
                     Ok(cs) => cs,
                     Err(e) => {
                         changeset.mark_failed(format!("Module publish failed: {}", e));
@@ -215,6 +216,8 @@ impl BlockchainEngine {
                     function,
                     type_tags,
                     args.clone(),
+                    None,
+                    None,
                 ) {
                     Ok(cs) => cs,
                     Err(e) => {
@@ -292,6 +295,55 @@ impl BlockchainEngine {
                 // CRITICAL: Increment sequence and deduct gas for successful transfer
                 let sender_change = changeset.get_or_create_change(from_addr);
                 sender_change.increment_sequence(); // Prevent replay attacks
+                sender_change.debit(gas_cost);
+
+                // Credit gas to DAO
+                let dao_addr = AccountAddress::from_hex_literal(KanariAddress::DAO_ADDRESS)?;
+                changeset.collect_gas(dao_addr, gas_cost);
+
+                changeset.set_gas_used(gas_meter.gas_used);
+            }
+            Transaction::Burn { from, amount, .. } => {
+                // Calculate gas for burn
+                let gas_op = GasOperation::Transfer; // reuse transfer gas cost for now
+                gas_meter.consume(gas_op.gas_units())?;
+
+                let from_addr = AccountAddress::from_hex_literal(from)?;
+                let gas_cost = gas_meter.total_cost();
+                let total_required = amount.saturating_add(gas_cost);
+
+                // Check balance for amount + gas
+                {
+                    let state = self.state.read().unwrap();
+                    let balance = state
+                        .get_account(&from_addr)
+                        .map(|acc| acc.balance)
+                        .unwrap_or(0);
+                    if balance < total_required {
+                        changeset.mark_failed(format!(
+                            "Insufficient balance: need {} (burn: {}, gas: {}) but have {}",
+                            total_required, amount, gas_cost, balance
+                        ));
+
+                        // Deduct gas and increment sequence even on failure
+                        let sender_change = changeset.get_or_create_change(from_addr);
+                        sender_change.increment_sequence();
+                        sender_change.debit(gas_cost);
+
+                        let dao_addr =
+                            AccountAddress::from_hex_literal(KanariAddress::DAO_ADDRESS)?;
+                        changeset.collect_gas(dao_addr, gas_cost);
+                        changeset.set_gas_used(gas_meter.gas_used);
+                        return Ok(changeset);
+                    }
+                }
+
+                // Apply burn: remove amount from sender and reduce total supply
+                changeset.burn(from_addr, *amount);
+
+                // Increment sequence and deduct gas for successful burn
+                let sender_change = changeset.get_or_create_change(from_addr);
+                sender_change.increment_sequence();
                 sender_change.debit(gas_cost);
 
                 // Credit gas to DAO
@@ -412,6 +464,7 @@ impl BlockchainEngine {
             module_name: deployment.module_name.clone(),
             gas_limit: deployment.gas_limit,
             gas_price: deployment.gas_price,
+            sequence_number: 0,
         };
 
         // Create unsigned transaction for now (in production, should be signed)
@@ -448,6 +501,7 @@ impl BlockchainEngine {
             args: call.args.clone(),
             gas_limit: call.gas_limit,
             gas_price: call.gas_price,
+            sequence_number: 0,
         };
 
         let signed_tx = SignedTransaction::new(tx);

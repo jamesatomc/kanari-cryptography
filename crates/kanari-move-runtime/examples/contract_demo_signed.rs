@@ -55,6 +55,7 @@ fn main() -> Result<()> {
         module_name: "my_token".to_string(),
         gas_limit: 1_000_000,
         gas_price: 1500,
+        sequence_number: 0,
     };
 
     let mut signed_tx = SignedTransaction::new(tx);
@@ -125,6 +126,7 @@ fn main() -> Result<()> {
         args: vec![recipient, amount],
         gas_limit: 200_000,
         gas_price: 1500,
+        sequence_number: 0,
     };
 
     println!("  📋 Call Info:");

@@ -11,6 +11,9 @@ use move_vm_runtime::move_vm::MoveVM;
 use move_vm_test_utils::InMemoryStorage;
 use move_vm_types::gas::UnmeteredGasMeter;
 
+use crate::gas::{GasMeter, GasOperation};
+use kanari_types::address::Address as KanariAddress;
+
 use crate::changeset::ChangeSet;
 use crate::move_vm_state::MoveVMState;
 
@@ -39,6 +42,9 @@ impl MoveRuntime {
         &mut self,
         module_bytes: Vec<u8>,
         sender: AccountAddress,
+        // Optional gas tuple: (gas_limit, gas_price). If `Some`, runtime will
+        // include gas accounting (debit sender, credit DAO) in the returned ChangeSet.
+        gas_info: Option<(u64, u64)>,
     ) -> Result<ChangeSet> {
         let storage_clone = self.storage.clone();
         let mut session = self.vm.new_session(storage_clone);
@@ -69,6 +75,24 @@ impl MoveRuntime {
         // Create ChangeSet from Move VM changeset
         let mut cs = ChangeSet::new();
         cs.publish_module(sender, module_id.name().to_string());
+
+        // If caller provided gas info, include gas accounting in the ChangeSet.
+        if let Some((gas_limit, gas_price)) = gas_info {
+            let mut meter = GasMeter::new(gas_limit, gas_price);
+            let gas_op = GasOperation::PublishModule {
+                module_size: module_bytes.len(),
+            };
+            meter.consume(gas_op.gas_units())?;
+            let gas_cost = meter.total_cost();
+
+            let sender_change = cs.get_or_create_change(sender);
+            sender_change.increment_sequence();
+            sender_change.debit(gas_cost);
+
+            let dao_addr = AccountAddress::from_hex_literal(KanariAddress::DAO_ADDRESS)?;
+            cs.collect_gas(dao_addr, gas_cost);
+            cs.set_gas_used(meter.gas_used);
+        }
 
         // Parse Move VM changeset and events
         self.parse_move_changeset(&move_changeset, &mut cs);
@@ -136,7 +160,7 @@ impl MoveRuntime {
                             mod_id.address().short_str_lossless()
                         ))
                         .unwrap_or(mod_id.address().clone());
-                        let res = self.publish_module(bytes.clone(), sender);
+                        let res = self.publish_module(bytes.clone(), sender, None);
                         match res {
                             Ok(_changeset) => made_progress = true,
                             Err(e) => {
@@ -171,6 +195,11 @@ impl MoveRuntime {
         function_name: &str,
         type_args: Vec<TypeTag>,
         args: Vec<Vec<u8>>,
+        // Optional sender address. If provided along with `gas_info`, runtime will debit this sender.
+        sender: Option<AccountAddress>,
+        // Optional gas tuple: (gas_limit, gas_price). If provided, runtime will
+        // include gas accounting (debit sender if available, credit DAO) in the returned ChangeSet.
+        gas_info: Option<(u64, u64)>,
     ) -> Result<ChangeSet> {
         let storage_clone = self.storage.clone();
         let mut session = self.vm.new_session(storage_clone);
@@ -208,6 +237,26 @@ impl MoveRuntime {
         // Parse Move VM changeset and events
         self.parse_move_changeset(&move_changeset, &mut cs);
         self.parse_move_events(&events, &mut cs);
+
+        // If gas accounting requested, include gas debit/credit in ChangeSet.
+        if let Some((gas_limit, gas_price)) = gas_info {
+            let mut meter = GasMeter::new(gas_limit, gas_price);
+            // We use a default complexity of 1 when called directly via runtime.
+            let gas_op = GasOperation::ExecuteFunction { complexity: 1 };
+            meter.consume(gas_op.gas_units())?;
+            let gas_cost = meter.total_cost();
+
+            // If sender provided, debit them and increment sequence to prevent replay.
+            if let Some(saddr) = sender {
+                let sender_change = cs.get_or_create_change(saddr);
+                sender_change.increment_sequence();
+                sender_change.debit(gas_cost);
+            }
+
+            let dao_addr = AccountAddress::from_hex_literal(KanariAddress::DAO_ADDRESS)?;
+            cs.collect_gas(dao_addr, gas_cost);
+            cs.set_gas_used(meter.gas_used);
+        }
 
         Ok(cs)
     }

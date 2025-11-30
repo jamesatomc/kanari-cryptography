@@ -125,6 +125,7 @@ pub struct PublishModuleRequest {
     pub module_name: String,
     pub gas_limit: u64,
     pub gas_price: u64,
+    pub sequence_number: u64,
     pub signature: Option<Vec<u8>>,
 }
 
@@ -139,6 +140,7 @@ pub struct CallFunctionRequest {
     pub args: Vec<Vec<u8>>,
     pub gas_limit: u64,
     pub gas_price: u64,
+    pub sequence_number: u64,
     pub signature: Option<Vec<u8>>,
 }
 

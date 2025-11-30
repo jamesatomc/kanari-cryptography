@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use kanari_crypto::{
     keys::{generate_keypair, generate_mnemonic, keypair_from_mnemonic, CurveType},
-    wallet::{list_wallet_files, load_wallet, save_wallet, Wallet},
+    wallet::{list_wallet_files, load_wallet, save_wallet, set_selected_wallet, Wallet},
 };
 use kanari_move_runtime::SignedTransaction;
 use kanari_rpc_client::RpcClient;
@@ -61,13 +61,25 @@ enum Commands {
     },
     /// Transfer Kanari tokens to another address
     Transfer {
-        /// Sender wallet address
+        /// Sender wallet address (optional). If omitted, uses selected wallet in config.
         #[arg(short, long)]
-        from: String,
+        from: Option<String>,
         /// Recipient address
         #[arg(short, long)]
         to: String,
         /// Amount in Kanari (will be converted to Mist)
+        #[arg(short, long)]
+        amount: f64,
+        /// Wallet password
+        #[arg(short, long)]
+        password: String,
+    },
+    /// Burn Kanari tokens from a wallet (remove from total supply)
+    Burn {
+        /// Wallet address to burn from (optional). If omitted, uses selected wallet in config.
+        #[arg(short, long)]
+        from: Option<String>,
+        /// Amount in Kanari to burn
         #[arg(short, long)]
         amount: f64,
         /// Wallet password
@@ -150,12 +162,29 @@ fn main() -> Result<()> {
             let wallet: Wallet =
                 load_wallet(&address, &password).context("Failed to load wallet")?;
             println!("Wallet loaded: {} (curve: {})", address, wallet.curve_type);
+
+            // Mark this wallet as selected in the kanari config so `list-wallets`
+            // shows the expected selected address.
+            set_selected_wallet(&address).context("Failed to set selected wallet")?;
+            println!("Selected wallet: {}", address);
+
             Ok(())
         }
 
         Commands::ListWallets => {
             let wallets = list_wallet_files().context("Failed to list wallets")?;
             println!("Found {} wallets", wallets.len());
+            if wallets.is_empty() {
+                println!("No wallets found.");
+            } else {
+                for (addr, selected) in wallets {
+                    if selected {
+                        println!("- {}  (selected)", addr);
+                    } else {
+                        println!("- {}", addr);
+                    }
+                }
+            }
             Ok(())
         }
 
@@ -183,17 +212,25 @@ fn main() -> Result<()> {
         } => {
             runtime.block_on(async {
                 // Load sender wallet to verify ownership
-                let wallet =
-                    load_wallet(&from, &password).context("Failed to load sender wallet")?;
+                        // Determine sender: prefer explicit `--from`, otherwise use selected wallet
+                        let from_addr = if let Some(f) = from.clone() { f } else {
+                            kanari_crypto::wallet::get_selected_wallet()
+                                .ok_or_else(|| anyhow::anyhow!("No sender provided and no selected wallet set. Use --from or run `kanari load-wallet` to select one."))?
+                        };
+
+                        let wallet =
+                            load_wallet(&from_addr, &password).context("Failed to load sender wallet")?;
 
                 println!("💸 Transferring Kanari tokens...");
-                println!("  From: {}", from);
+                println!("  From: {}", from_addr);
                 println!("  To: {}", to);
                 println!("  Amount: {} KANARI", amount);
 
                 // Convert Kanari to Mist (1 KANARI = 10^9 Mist)
+                // Use rounding to avoid floating-point truncation artifacts
                 const MIST_PER_KANARI: f64 = 1_000_000_000.0;
-                let amount_mist = (amount * MIST_PER_KANARI) as u64;
+                let amount_mist_f = amount * MIST_PER_KANARI;
+                let amount_mist = amount_mist_f.round() as u64;
                 println!("  Amount (Mist): {}", amount_mist);
 
                 // Connect to RPC server instead of creating engine
@@ -209,12 +246,21 @@ fn main() -> Result<()> {
                     }
                 }
 
-                // Create and sign transaction
-                let tx = kanari_move_runtime::Transaction::new_transfer(
-                    from.clone(),
-                    to.clone(),
-                    amount_mist,
-                );
+                // Get account to get sequence number before creating the transaction
+                let account = client
+                    .get_account(&from_addr)
+                    .await
+                    .context("Failed to get sender account")?;
+
+                // Create and sign transaction (include sequence number so signature matches server verification)
+                let tx = kanari_move_runtime::Transaction::Transfer {
+                    from: from_addr.clone(),
+                    to: to.clone(),
+                    amount: amount_mist,
+                    gas_limit: 100_000,
+                    gas_price: 1000,
+                    sequence_number: account.sequence_number,
+                };
 
                 println!("  Gas Limit: {}", tx.gas_limit());
                 println!("  Gas Price: {} Mist/gas", tx.gas_price());
@@ -228,16 +274,10 @@ fn main() -> Result<()> {
 
                 println!("  📤 Submitting transaction to node...");
 
-                // Get account to get sequence number
-                let account = client
-                    .get_account(&from)
-                    .await
-                    .context("Failed to get sender account")?;
-
                 // Convert SignedTransaction to RPC format
                 use kanari_rpc_api::SignedTransactionData;
                 let tx_data = SignedTransactionData {
-                    sender: from.clone(),
+                    sender: from_addr.clone(),
                     recipient: Some(to.clone()),
                     amount: Some(amount_mist),
                     gas_limit: signed_tx.transaction.gas_limit(),
@@ -260,6 +300,99 @@ fn main() -> Result<()> {
                     }
                     Err(e) => {
                         eprintln!("  ❌ Failed to submit transaction: {}", e);
+                        return Err(e);
+                    }
+                }
+
+                Ok::<(), anyhow::Error>(())
+            })?;
+
+            Ok(())
+        }
+
+        Commands::Burn {
+            from,
+            amount,
+            password,
+        } => {
+            runtime.block_on(async {
+                // Determine sender: prefer explicit `--from`, otherwise use selected wallet
+                let from_addr = if let Some(f) = from.clone() { f } else {
+                    kanari_crypto::wallet::get_selected_wallet()
+                        .ok_or_else(|| anyhow::anyhow!("No sender provided and no selected wallet set. Use --from or run `kanari load-wallet` to select one."))?
+                };
+
+                let wallet = load_wallet(&from_addr, &password).context("Failed to load sender wallet")?;
+
+                println!("🔥 Burning Kanari tokens...");
+                println!("  From: {}", from_addr);
+                println!("  Amount: {} KANARI", amount);
+
+                // Convert Kanari to Mist (1 KANARI = 10^9 Mist)
+                const MIST_PER_KANARI: f64 = 1_000_000_000.0;
+                let amount_mist_f = amount * MIST_PER_KANARI;
+                let amount_mist = amount_mist_f.round() as u64;
+                println!("  Amount (Mist): {}", amount_mist);
+
+                // Connect to RPC server
+                let client = RpcClient::new("http://127.0.0.1:3000");
+
+                match client.get_block_height().await {
+                    Ok(height) => println!("  📡 Connected to node (height: {})", height),
+                    Err(_) => {
+                        eprintln!("  ❌ Cannot connect to RPC server at http://127.0.0.1:3000");
+                        eprintln!("  Please start the node first: cargo run --bin kanari-node");
+                        return Err(anyhow::anyhow!("RPC server not available"));
+                    }
+                }
+
+                // Get account to get sequence number
+                let account = client
+                    .get_account(&from_addr)
+                    .await
+                    .context("Failed to get sender account")?;
+
+                // Create burn transaction
+                let tx = kanari_move_runtime::Transaction::Burn {
+                    from: from_addr.clone(),
+                    amount: amount_mist,
+                    gas_limit: 100_000,
+                    gas_price: 1000,
+                    sequence_number: account.sequence_number,
+                };
+
+                println!("  Gas Limit: {}", tx.gas_limit());
+                println!("  Gas Price: {} Mist/gas", tx.gas_price());
+
+                // Sign transaction
+                let mut signed_tx = SignedTransaction::new(tx);
+                signed_tx
+                    .sign(&wallet.private_key, wallet.curve_type)
+                    .context("Failed to sign transaction")?;
+                println!("  🔒 Transaction signed");
+
+                println!("  📤 Submitting burn transaction to node...");
+
+                use kanari_rpc_api::SignedTransactionData;
+                let tx_data = SignedTransactionData {
+                    sender: from_addr.clone(),
+                    recipient: None,
+                    amount: Some(amount_mist),
+                    gas_limit: signed_tx.transaction.gas_limit(),
+                    gas_price: signed_tx.transaction.gas_price(),
+                    sequence_number: account.sequence_number,
+                    signature: signed_tx.signature.clone(),
+                };
+
+                match client.submit_transaction(tx_data).await {
+                    Ok(status) => {
+                        println!("  ✅ Burn transaction submitted successfully!");
+                        println!("  Transaction hash: {}", status.hash);
+                        println!("  Status: {}", status.status);
+                        println!("  ⏳ Waiting for block confirmation...");
+                    }
+                    Err(e) => {
+                        eprintln!("  ❌ Failed to submit burn transaction: {}", e);
                         return Err(e);
                     }
                 }

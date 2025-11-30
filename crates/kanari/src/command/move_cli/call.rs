@@ -161,6 +161,41 @@ impl Call {
         // Create transaction
         println!("\n🔨 Creating transaction...");
 
+        // Query account sequence number so signature and RPC include it
+        let mut seq_num: u64 = 0;
+        {
+            use kanari_rpc_api::{methods, RpcRequest, RpcResponse};
+            let acct_req = RpcRequest {
+                jsonrpc: "2.0".to_string(),
+                method: methods::GET_ACCOUNT.to_string(),
+                params: serde_json::to_value(sender_normalized.clone())
+                    .unwrap_or(serde_json::json!(null)),
+                id: 1,
+            };
+
+            let client = Client::new();
+            match client.post(&self.rpc_endpoint).json(&acct_req).send() {
+                Ok(resp) => match resp.json::<RpcResponse>() {
+                    Ok(rpc_resp) => {
+                        if let Some(result) = rpc_resp.result {
+                            if let Ok(account_value) =
+                                serde_json::from_value::<serde_json::Value>(result)
+                            {
+                                if let Some(sn) = account_value
+                                    .get("sequence_number")
+                                    .and_then(|v| v.as_u64())
+                                {
+                                    seq_num = sn;
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => eprintln!("   Failed to parse account RPC response: {}", e),
+                },
+                Err(e) => eprintln!("   Failed to query account sequence: {}", e),
+            }
+        }
+
         // Sign transaction if wallet is available
         let signature = if let Some(ref wallet) = wallet {
             // Create proper Transaction to match server's expectation
@@ -173,6 +208,7 @@ impl Call {
                 args: _args.clone(),
                 gas_limit: self.gas_limit,
                 gas_price: self.gas_price,
+                sequence_number: seq_num,
             };
 
             // Get transaction hash (same way server does it)
@@ -206,6 +242,7 @@ impl Call {
             args: _args.clone(),
             gas_limit: self.gas_limit,
             gas_price: self.gas_price,
+            sequence_number: seq_num,
             signature,
         };
 

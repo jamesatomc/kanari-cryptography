@@ -265,20 +265,47 @@ async fn handle_submit_transaction(state: &RpcServerState, request: &RpcRequest)
     // Create Transaction based on type
     use kanari_move_runtime::Transaction;
     let transaction = if let (Some(recipient), Some(amount)) = (recipient, tx_data.amount) {
+        // Regular transfer
         Transaction::Transfer {
             from: sender.to_string(),
             to: recipient.to_string(),
             amount,
             gas_limit: tx_data.gas_limit,
             gas_price: tx_data.gas_price,
+            sequence_number: tx_data.sequence_number,
+        }
+    } else if recipient.is_none() && tx_data.amount.is_some() {
+        // Burn transaction (no recipient, amount provided)
+        // Restrict burns to system/admin addresses only
+        let sender_hex = sender.to_hex_literal();
+        let allowed = sender_hex == kanari_types::address::Address::KANARI_SYSTEM_ADDRESS
+            || sender_hex == kanari_types::address::Address::DEV_ADDRESS;
+        if !allowed {
+            error!("Unauthorized burn attempt from {}", sender_hex);
+            return RpcResponse {
+                jsonrpc: "2.0".to_string(),
+                result: None,
+                error: Some(RpcError::invalid_params(
+                    "Burn transactions are restricted to system administrators",
+                )),
+                id: request.id,
+            };
+        }
+
+        Transaction::Burn {
+            from: sender.to_string(),
+            amount: tx_data.amount.unwrap(),
+            gas_limit: tx_data.gas_limit,
+            gas_price: tx_data.gas_price,
+            sequence_number: tx_data.sequence_number,
         }
     } else {
-        error!("Invalid transaction type - only transfers supported currently");
+        error!("Invalid transaction type - only transfers and burns supported currently");
         return RpcResponse {
             jsonrpc: "2.0".to_string(),
             result: None,
             error: Some(RpcError::invalid_params(
-                "Only transfer transactions are supported",
+                "Only transfer or burn transactions are supported",
             )),
             id: request.id,
         };
@@ -365,6 +392,7 @@ async fn handle_publish_module(state: &RpcServerState, request: &RpcRequest) -> 
         module_name: module_data.module_name,
         gas_limit: module_data.gas_limit,
         gas_price: module_data.gas_price,
+        sequence_number: module_data.sequence_number,
     };
 
     let mut signed_tx = SignedTransaction::new(transaction);
@@ -460,6 +488,7 @@ async fn handle_call_function(state: &RpcServerState, request: &RpcRequest) -> R
         args: call_data.args,
         gas_limit: call_data.gas_limit,
         gas_price: call_data.gas_price,
+        sequence_number: call_data.sequence_number,
     };
 
     let mut signed_tx = SignedTransaction::new(transaction);

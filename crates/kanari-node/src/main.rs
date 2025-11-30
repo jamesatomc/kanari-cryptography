@@ -103,7 +103,7 @@ async fn main() -> Result<()> {
             // use system address as sender
             let sender = AccountAddress::from_hex_literal("0x2")?;
             println!("Publishing {}...", path.display());
-            rt.publish_module(bytes, sender)?;
+            rt.publish_module(bytes, sender, None)?;
             println!("Published.");
             return Ok(());
         }

@@ -88,6 +88,7 @@ pub enum Transaction {
         module_name: String,
         gas_limit: u64,
         gas_price: u64,
+        sequence_number: u64,
     },
     /// Execute a Move function
     ExecuteFunction {
@@ -98,6 +99,7 @@ pub enum Transaction {
         args: Vec<Vec<u8>>,
         gas_limit: u64,
         gas_price: u64,
+        sequence_number: u64,
     },
     /// Transfer coins
     Transfer {
@@ -106,6 +108,15 @@ pub enum Transaction {
         amount: u64,
         gas_limit: u64,
         gas_price: u64,
+        sequence_number: u64,
+    },
+    /// Burn coins (remove from total supply)
+    Burn {
+        from: String,
+        amount: u64,
+        gas_limit: u64,
+        gas_price: u64,
+        sequence_number: u64,
     },
 }
 
@@ -120,6 +131,7 @@ impl Transaction {
             Transaction::PublishModule { sender, .. } => sender,
             Transaction::ExecuteFunction { sender, .. } => sender,
             Transaction::Transfer { from, .. } => from,
+            Transaction::Burn { from, .. } => from,
         }
     }
 
@@ -128,9 +140,20 @@ impl Transaction {
     }
 
     pub fn sequence_number(&self) -> u64 {
-        // In real implementation, this should be part of Transaction struct
-        // For now, return 0 (will be validated against current state)
-        0
+        match self {
+            Transaction::PublishModule {
+                sequence_number, ..
+            } => *sequence_number,
+            Transaction::ExecuteFunction {
+                sequence_number, ..
+            } => *sequence_number,
+            Transaction::Transfer {
+                sequence_number, ..
+            } => *sequence_number,
+            Transaction::Burn {
+                sequence_number, ..
+            } => *sequence_number,
+        }
     }
 
     pub fn gas_limit(&self) -> u64 {
@@ -138,6 +161,7 @@ impl Transaction {
             Transaction::PublishModule { gas_limit, .. } => *gas_limit,
             Transaction::ExecuteFunction { gas_limit, .. } => *gas_limit,
             Transaction::Transfer { gas_limit, .. } => *gas_limit,
+            Transaction::Burn { gas_limit, .. } => *gas_limit,
         }
     }
 
@@ -146,6 +170,7 @@ impl Transaction {
             Transaction::PublishModule { gas_price, .. } => *gas_price,
             Transaction::ExecuteFunction { gas_price, .. } => *gas_price,
             Transaction::Transfer { gas_price, .. } => *gas_price,
+            Transaction::Burn { gas_price, .. } => *gas_price,
         }
     }
 
@@ -157,6 +182,18 @@ impl Transaction {
             amount,
             gas_limit: 100_000, // Default gas limit
             gas_price: 1000,    // Default gas price (1000 Mist)
+            sequence_number: 0,
+        }
+    }
+
+    /// Create a burn transaction with default gas settings
+    pub fn new_burn(from: String, amount: u64) -> Self {
+        Self::Burn {
+            from,
+            amount,
+            gas_limit: 100_000,
+            gas_price: 1000,
+            sequence_number: 0,
         }
     }
 }
